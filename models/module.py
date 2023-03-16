@@ -107,6 +107,14 @@ def homo_warping(src_fea, src_proj, ref_proj, depth_values):
         proj = torch.matmul(src_proj, torch.inverse(ref_proj))
         rot = proj[:, :3, :3]  # [B,3,3]
         trans = proj[:, :3, 3:4]  # [B,3,1]
+        # DEBUG
+        # import re, cv2
+        # print ("Rotation:")
+        # print(re.sub('( \[|\[|\])', '',str(rot.cpu().numpy())))
+        
+        # print ("Translation:")
+        # print(re.sub('( \[|\[|\])', '',str(trans.cpu().numpy())))
+        # DEBUG END
 
         y, x = torch.meshgrid([torch.arange(0, height, dtype=torch.float32, device=src_fea.device),
                                torch.arange(0, width, dtype=torch.float32, device=src_fea.device)])
@@ -147,7 +155,7 @@ if __name__ == "__main__":
     import cv2
 
     MVSDataset = find_dataset_def("dtu_yao")
-    dataset = MVSDataset("/home/xyguo/dataset/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/train.txt', 'train',
+    dataset = MVSDataset("~/BRO/EVAL_CODE/MVS/datasets/DTU/mvs_training/dtu/", '../lists/dtu/train.txt', 'train',
                          3, 256)
     dataloader = DataLoader(dataset, batch_size=2)
     item = next(iter(dataloader))

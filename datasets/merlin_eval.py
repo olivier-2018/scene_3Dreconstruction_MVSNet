@@ -1,3 +1,4 @@
+# merlin_eval
 from torch.utils.data import Dataset
 import numpy as np
 import os
@@ -16,7 +17,7 @@ class MVSDataset(Dataset):
         self.ndepths = ndepths
         self.interval_scale = interval_scale
 
-        assert self.mode == "test"
+        assert self.mode in ["test", "eval"], 'mode should be test or eval'
         self.metas = self.build_list()
 
     def build_list(self):
@@ -31,13 +32,14 @@ class MVSDataset(Dataset):
             pair_file = "Cameras/pair.txt" # OLI
             # read the pair file
             with open(os.path.join(self.datapath, pair_file)) as f:
-                num_viewpoint = int(f.readline())
-                # viewpoints (49)
+                num_viewpoint = int(f.readline()) # viewpoints (49)
+                print("Pair file, no viewpoints:{}".format(num_viewpoint)) # OLI
                 for view_idx in range(num_viewpoint):
                     ref_view = int(f.readline().rstrip())
-                    src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
+                    src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]                    
+                    print(ref_view, src_views)# OLI
                     metas.append((scan, ref_view, src_views))
-        print("Dataset:{} Views(pair-file):{} Scenes: {} Metas:{} ".format(self.mode, num_viewpoint, len(scans), len(metas)))
+        print("Dataset:{}, Viewpoints:{}, Metas:{}".format(self.mode, num_viewpoint, len(metas)))
         return metas
 
     def __len__(self):
@@ -51,7 +53,7 @@ class MVSDataset(Dataset):
         extrinsics = np.fromstring(' '.join(lines[1:5]), dtype=np.float32, sep=' ').reshape((4, 4))
         # intrinsics: line [7-10), 3x3 matrix
         intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
-        intrinsics[:2, :] /= 4
+        intrinsics[:2, :] /= 4 ### RESCALE
         # depth_min & depth_interval: line 11
         depth_min = float(lines[11].split()[0])
         depth_interval = float(lines[11].split()[1]) * self.interval_scale
@@ -61,7 +63,7 @@ class MVSDataset(Dataset):
         img = Image.open(filename)
         # scale 0~255 to 0~1
         np_img = np.array(img, dtype=np.float32) / 255.
-        assert np_img.shape[:2] == (1200, 1600) 
+        assert np_img.shape[:2] == (1200, 1600) ### RESCALE
         ## crop to (1184, 1600)
         np_img = np_img[:-16, :]  # do not need to modify intrinsics if cropping the bottom part
         return np_img
@@ -73,6 +75,7 @@ class MVSDataset(Dataset):
     def __getitem__(self, idx):
         meta = self.metas[idx]
         scan, ref_view, src_views = meta
+        light_idx = 0 
         # use only the reference view and first nviews-1 source views
         view_ids = [ref_view] + src_views[:self.nviews - 1]
 
@@ -81,13 +84,15 @@ class MVSDataset(Dataset):
         depth = None
         depth_values = None
         proj_matrices = []
-
+    
         for i, vid in enumerate(view_ids):
             # img_filename = os.path.join(self.datapath, '{}/images/{:0>8}.jpg'.format(scan, vid))
-            img_filename = os.path.join(self.datapath, 'Rectified/{}/{:0>8}.jpg'.format(scan, vid)) # OLI-
+            # img_filename = os.path.join(self.datapath, 'Rectified/{}/{:0>8}.png'.format(scan, vid)) # OLI-
+            img_filename = os.path.join(self.datapath, 'Rectified/{}/rect_S{:0>3}_L{}.png'.format(scan, vid, light_idx)) # OLI-
             
             # proj_mat_filename = os.path.join(self.datapath, '{}/cams/{:0>8}_cam.txt'.format(scan, vid))
-            proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt'.format(vid)) # OLI -use same cam settings for all scenes (scans)
+            # proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt'.format(vid)) # OLI -use same cam settings for all scenes (scans)
+            proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt'.format(vid)) # OLI
 
             imgs.append(self.read_img(img_filename))
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)

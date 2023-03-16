@@ -1,0 +1,1 @@
+tensorboard --logdir=checkpoints/merlin/d128_itvl2.5 --bind_all

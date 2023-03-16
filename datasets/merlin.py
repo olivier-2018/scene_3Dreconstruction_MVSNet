@@ -1,9 +1,10 @@
+# merlin.py
 from torch.utils.data import Dataset
 import numpy as np
 import os
 from PIL import Image
-from datasets.data_io import * # OLI: use when running local with python -m datasets.dtu_yao
-# from data_io import * # OLI: std model 
+from datasets.data_io import * # OLI: use when calling with python -m datasets.dtu_yao
+# from data_io import * # OLI: use when debugging 
 
 
 # the DTU dataset preprocessed by Yao Yao (only for training)
@@ -37,8 +38,10 @@ class MVSDataset(Dataset):
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
                     # light conditions 0-6
-                    for light_idx in range(7):
-                        metas.append((scan, light_idx, ref_view, src_views))
+                    # for light_idx in range(7):
+                        # metas.append((scan, light_idx, ref_view, src_views))
+                    light_idx = 0
+                    metas.append((scan, light_idx, ref_view, src_views))
         print("dataset", self.mode, "metas:", len(metas))
         return metas
 
@@ -55,7 +58,7 @@ class MVSDataset(Dataset):
         intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
         # depth_min & depth_interval: line 11
         depth_min = float(lines[11].split()[0])
-        depth_interval = float(lines[11].split()[1]) * self.interval_scale
+        depth_interval = float(lines[11].split()[1]) * self.interval_scale  ## WARNING
         return intrinsics, extrinsics, depth_min, depth_interval
 
     def read_img(self, filename):
@@ -82,11 +85,16 @@ class MVSDataset(Dataset):
 
         for i, vid in enumerate(view_ids):
             # NOTE that the id in image file names is from 1 to 49 (not 0~48)
-            img_filename = os.path.join(self.datapath,
-                                        'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
-            mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_visual_{:0>4}.png'.format(scan, vid))
-            depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))
-            proj_mat_filename = os.path.join(self.datapath, 'Cameras/train/{:0>8}_cam.txt').format(vid)
+            # img_filename = os.path.join(self.datapath, 'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
+            # img_filename = os.path.join(self.datapath, 'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid , light_idx))
+            img_filename = os.path.join(self.datapath, 'Rectified/{}/rect_S{:0>3}_L{}.png'.format(scan, vid , light_idx))
+            
+            # mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_visual_{:0>4}.png'.format(scan, vid))            
+            # mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_mask_{:0>4}.png'.format(scan, vid))
+            # depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))          
+            mask_filename = os.path.join(self.datapath, 'Depths/{}/depth_mask_{:0>4}.png'.format(scan, vid))
+            depth_filename = os.path.join(self.datapath, 'Depths/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
+            proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt').format(vid)
 
             imgs.append(self.read_img(img_filename))
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
@@ -97,8 +105,7 @@ class MVSDataset(Dataset):
             proj_matrices.append(proj_mat)
 
             if i == 0:  # reference view
-                depth_values = np.arange(depth_min, depth_interval * self.ndepths + depth_min, depth_interval,
-                                         dtype=np.float32)
+                depth_values = np.arange(depth_min, depth_min + depth_interval * self.ndepths, depth_interval, dtype=np.float32)
                 mask = self.read_img(mask_filename)
                 depth = self.read_depth(depth_filename)
 
@@ -117,11 +124,14 @@ if __name__ == "__main__":
     # some testing code, just IGNORE it
     print ("## Dataset test - OLI## python -m datasets.dtu_yao")
     
-    N = 3
     # datapath = "/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/DTU/mvs_training"
-    datapath = "/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/DTU/mvs_training"
+    datapath = "/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/Blender/mvs_training_BDS1"
+    trainlist = '/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/lists/merlin/train.txt'
+    Nviews = 3
+    numdepth = 256
+    interval_scale = 2.5
     
-    dataset = MVSDataset(datapath, '/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/lists/dtu/train.txt', 'train',N, 128)
+    dataset = MVSDataset(datapath, trainlist, 'train', Nviews, numdepth, interval_scale)
     item = dataset[50]
 
     # dataset = MVSDataset("./MVS_TRANING", '/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/lists/dtu/val.txt', 'val', N,128)
@@ -139,13 +149,15 @@ if __name__ == "__main__":
     print("mask", item["mask"].shape)
 
     print("\nImages:")
-    ref_img = item["imgs"][0].transpose([1, 2, 0])[::4, ::4]
-    src_imgs = [item["imgs"][i].transpose([1, 2, 0])[::4, ::4] for i in range(1, N)]
+    # ref_img = item["imgs"][0].transpose([1, 2, 0])[::4, ::4]
+    # src_imgs = [item["imgs"][i].transpose([1, 2, 0])[::4, ::4] for i in range(1, Nviews)]
+    ref_img = item["imgs"][0].transpose([1, 2, 0])
+    src_imgs = [item["imgs"][i].transpose([1, 2, 0]) for i in range(1, Nviews)]
     print("ref_img shape: ", ref_img.shape)
     print("length src_imgs: ", len(src_imgs))
     
     ref_proj_mat = item["proj_matrices"][0]
-    src_proj_mats = [item["proj_matrices"][i] for i in range(1, N)]
+    src_proj_mats = [item["proj_matrices"][i] for i in range(1, Nviews)]
     print("ref_proj_mat: ", ref_proj_mat)
     
     mask = item["mask"]
@@ -173,7 +185,7 @@ if __name__ == "__main__":
 
     warped = cv2.remap(src_imgs[0], yy, xx, interpolation=cv2.INTER_LINEAR)
     warped[mask[:, :] < 0.5] = 0
-
-    cv2.imwrite('../tmp0.png', ref_img[:, :, ::-1] * 255)
-    cv2.imwrite('../tmp1.png', warped[:, :, ::-1] * 255)
-    cv2.imwrite('../tmp2.png', src_imgs[0][:, :, ::-1] * 255)
+    
+    cv2.imwrite('tmp0.png', ref_img[:, :, ::-1] * 255)
+    cv2.imwrite('tmp1.png', warped[:, :, ::-1] * 255)
+    cv2.imwrite('tmp2.png', src_imgs[0][:, :, ::-1] * 255)
