@@ -17,33 +17,31 @@ from utils import *
 import gc
 import sys
 import datetime
+import random
 
 cudnn.benchmark = True
-
-
-trainpath="/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/Blender/mvs_training_BDS1"
 
 parser = argparse.ArgumentParser(description='A PyTorch Implementation of MVSNet')
 parser.add_argument('--mode', default='train', help='train or test', choices=['train', 'test', 'profile'])
 parser.add_argument('--model', default='mvsnet', help='select model')
 
-parser.add_argument('--dataset', default='merlin', help='select dataset')
-parser.add_argument('--trainpath', default=trainpath, help='train datapath')
+parser.add_argument('--dataset', default='dtu_yao', help='select dataset')
+parser.add_argument('--trainpath', default="", help='train datapath')
 parser.add_argument('--testpath', help='test datapath')
-parser.add_argument('--trainlist', default="lists/merlin/train.txt", help='train list')
-parser.add_argument('--testlist', default="lists/merlin/test.txt", help='test list')
+parser.add_argument('--trainlist', default="lists/dtu/train.txt", help='train list')
+parser.add_argument('--testlist', default="lists/dtu/test.txt", help='test list')
 
 parser.add_argument('--epochs', type=int, default=16, help='number of epochs to train')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-parser.add_argument('--lrepochs', type=str, default="10,12,14,16,18,20,22,24,26,28,30:2", help='epoch ids to downscale lr and the downscale rate')
+parser.add_argument('--lrepochs', type=str, default="10,12,14:2", help='epoch ids to downscale lr and the downscale rate')
 parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 
 parser.add_argument('--batch_size', type=int, default=1, help='train batch size')
-parser.add_argument('--numdepth', type=int, default=128, help='the number of depth values')
-parser.add_argument('--interval_scale', type=float, default=5.0, help='the number of depth values')
+parser.add_argument('--numdepth', type=int, default=192, help='the number of depth values')
+parser.add_argument('--interval_scale', type=float, default=1.06, help='the number of depth values')
 
 parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
-parser.add_argument('--logdir', default='./checkpoints/merlin', help='the directory to save checkpoints/logs')
+parser.add_argument('--logdir', default='./outputs/debug', help='the directory to save checkpoints/logs')
 parser.add_argument('--resume', action='store_true', help='continue to train the model')
 
 parser.add_argument('--summary_freq', type=int, default=20, help='print and summary frequency')
@@ -59,9 +57,15 @@ if args.testpath is None:
     args.testpath = args.trainpath
 
 # OLI unsetting seed default
-torch.manual_seed(args.seed)
-torch.cuda.manual_seed(args.seed)
 torch.cuda.empty_cache() # OLI
+if args.seed == 0:
+    seed = random.randint(1,99999999)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed) 
+else:
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed) 
+
 
 # create logger for mode "train" and "testall"
 if args.mode == "train":
@@ -79,8 +83,8 @@ print_args(args)
 
 # dataset, dataloader
 MVSDataset = find_dataset_def(args.dataset)
-train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 4, args.numdepth, args.interval_scale)
-test_dataset = MVSDataset(args.testpath, args.testlist, "test", 4, args.numdepth, args.interval_scale)
+train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 3, args.numdepth, args.interval_scale)
+test_dataset = MVSDataset(args.testpath, args.testlist, "test", 5, args.numdepth, args.interval_scale)
 
 TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=10, drop_last=True)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=10, drop_last=False)
@@ -118,8 +122,7 @@ print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in mo
 def train():
     milestones = [int(epoch_idx) for epoch_idx in args.lrepochs.split(':')[0].split(',')]
     lr_gamma = 1 / float(args.lrepochs.split(':')[1])
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=lr_gamma,
-                                                        last_epoch=start_epoch - 1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=lr_gamma, last_epoch=start_epoch - 1)
 
     for epoch_idx in range(start_epoch, args.epochs):
         print('Epoch {}:'.format(epoch_idx))
@@ -135,10 +138,15 @@ def train():
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 save_images(logger, 'train', image_outputs, global_step)
-                print(
-                    'Epoch {}/{}, Iter {}/{}, train loss = {:.3f}, time = {:.3f}'.format(epoch_idx, args.epochs, batch_idx,
-                                                                                        len(TrainImgLoader), loss,
-                                                                                        time.time() - start_time))
+                print('Epoch {}/{}, Iter {}/{}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
+                        epoch_idx, args.epochs, 
+                        batch_idx,len(TrainImgLoader), 
+                        loss,
+                        scalar_outputs["abs_depth_error"],
+                        scalar_outputs["thres2mm_error"],
+                        scalar_outputs["thres4mm_error"],
+                        scalar_outputs["thres8mm_error"],
+                        time.time() - start_time))
                 sys.stdout.flush()
             del scalar_outputs, image_outputs
 
@@ -160,9 +168,15 @@ def train():
             if do_summary:
                 save_scalars(logger, 'test', scalar_outputs, global_step)
                 save_images(logger, 'test', image_outputs, global_step)
-                print('Epoch {}/{}, Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(epoch_idx, args.epochs, batch_idx,
-                                                                                        len(TestImgLoader), loss,
-                                                                                        time.time() - start_time))
+                print('Epoch {}/{}, Iter {}/{}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
+                        epoch_idx, args.epochs, 
+                        batch_idx,len(TestImgLoader), 
+                        loss,
+                        scalar_outputs["abs_depth_error"],
+                        scalar_outputs["thres2mm_error"],
+                        scalar_outputs["thres4mm_error"],
+                        scalar_outputs["thres8mm_error"],
+                        time.time() - start_time))
                 sys.stdout.flush()
             avg_test_scalars.update(scalar_outputs)
             del scalar_outputs, image_outputs
