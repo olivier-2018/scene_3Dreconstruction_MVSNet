@@ -24,8 +24,9 @@ cudnn.benchmark = True
 parser = argparse.ArgumentParser(description='A PyTorch Implementation of MVSNet')
 parser.add_argument('--mode', default='train', help='train or test', choices=['train', 'test', 'profile'])
 parser.add_argument('--model', default='mvsnet', help='select model')
+parser.add_argument('--refine', action='store_true', help='use the refine network')
 
-parser.add_argument('--dataset', default='dtu_yao', help='select dataset')
+parser.add_argument('--dataset', default='dtu_yao', choices=['dtu_yao', 'blender'],help='select dataset')
 parser.add_argument('--trainpath', default="", help='train datapath')
 parser.add_argument('--testpath', help='test datapath')
 parser.add_argument('--trainlist', default="lists/dtu/train.txt", help='train list')
@@ -39,24 +40,42 @@ parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 parser.add_argument('--batch_size', type=int, default=1, help='train batch size')
 parser.add_argument('--numdepth', type=int, default=192, help='the number of depth values')
 parser.add_argument('--interval_scale', type=float, default=1.06, help='the number of depth values')
+parser.add_argument('--Nlights', type=int, default=7, help='number of light sources in the dataset (DTU=7)')
 
 parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
 parser.add_argument('--logdir', default='./outputs/debug', help='the directory to save checkpoints/logs')
 parser.add_argument('--resume', action='store_true', help='continue to train the model')
 
-parser.add_argument('--summary_freq', type=int, default=20, help='print and summary frequency')
+parser.add_argument('--summary_freq', type=int, default=100, help='print and summary frequency')
 parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint frequency')
-parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed')
+parser.add_argument('--seed', type=int, default=0, metavar='S', help='0 for random seed')
 
-# parse arguments and check
+parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
+                    '0: print matrices and plot features '
+                    '1: plot warped views '
+                    '2: plot regularization '
+                    '3: plot depths proba '
+                    '4: plot expectation '
+                    '5: plot photometric confidence ')
+
 args = parser.parse_args()
+
+# multi-debug function
+####################### 
+def get_powers(n):
+    return [p for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
+
+
+# check for resume
+################################################
 if args.resume:
     assert args.mode == "train", 'Resume run requested but training not requested (set --mode to train)'
     assert args.loadckpt is None, 'Resume run requested but specific loadpoint also requested (unset --loadckpt)'
 if args.testpath is None:
     args.testpath = args.trainpath
 
-# OLI unsetting seed default
+# setting seed default
+###########################
 torch.cuda.empty_cache() # OLI
 if args.seed == 0:
     seed = random.randint(1,99999999)
@@ -68,6 +87,7 @@ else:
 
 
 # create logger for mode "train" and "testall"
+##################################################
 if args.mode == "train":
     if not os.path.isdir(args.logdir):
         os.mkdir(args.logdir)
@@ -82,15 +102,17 @@ print("argv:", sys.argv[1:])
 print_args(args)
 
 # dataset, dataloader
+##################################################
 MVSDataset = find_dataset_def(args.dataset)
-train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 3, args.numdepth, args.interval_scale)
-test_dataset = MVSDataset(args.testpath, args.testlist, "test", 5, args.numdepth, args.interval_scale)
+train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 3, args.numdepth, args.interval_scale, Nlights=args.Nlights)
+test_dataset = MVSDataset(args.testpath, args.testlist, "test", 5, args.numdepth, args.interval_scale, Nlights=args.Nlights)
 
 TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=10, drop_last=True)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=10, drop_last=False)
 
-# model, optimizer
-model = MVSNet(refine=False)
+# model, optimizer, loss
+##################################################
+model = MVSNet(refine=args.refine, debug=args.debug_MVSnet)
 if args.mode in ["train", "test"]:
     model = nn.DataParallel(model)
 model.cuda()
@@ -98,6 +120,7 @@ model_loss = mvsnet_loss
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.wd)
 
 # load parameters
+##################################################
 start_epoch = 0
 if (args.mode == "train" and args.resume) or (args.mode == "test" and not args.loadckpt):
     saved_models = [fn for fn in os.listdir(args.logdir) if fn.endswith(".ckpt")]
@@ -118,7 +141,9 @@ print("start at epoch {}".format(start_epoch))
 print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 
 
-# main function
+##################################################
+# main functions
+##################################################
 def train():
     milestones = [int(epoch_idx) for epoch_idx in args.lrepochs.split(':')[0].split(',')]
     lr_gamma = 1 / float(args.lrepochs.split(':')[1])

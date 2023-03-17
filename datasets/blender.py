@@ -1,11 +1,8 @@
-# merlin.py
 from torch.utils.data import Dataset
 import numpy as np
 import os
 from PIL import Image
-from datasets.data_io import * # OLI: use when calling with python -m datasets.dtu_yao
-# from data_io import * # OLI: use when debugging 
-
+from datasets.data_io import *
 
 # the DTU dataset preprocessed by Yao Yao (only for training)
 class MVSDataset(Dataset):
@@ -17,6 +14,7 @@ class MVSDataset(Dataset):
         self.nviews = nviews
         self.ndepths = ndepths
         self.interval_scale = interval_scale
+        self.Nlights = kwargs.get("Nlights", 7)
 
         assert self.mode in ["train", "val", "test"]
         self.metas = self.build_list()
@@ -38,10 +36,12 @@ class MVSDataset(Dataset):
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
                     # light conditions 0-6
-                    # for light_idx in range(7):
-                        # metas.append((scan, light_idx, ref_view, src_views))
-                    light_idx = 0
-                    metas.append((scan, light_idx, ref_view, src_views))
+                    if self.Nlights == 1:
+                        light_idx = 0 
+                        metas.append((scan, light_idx, ref_view, src_views))
+                    else:
+                        for light_idx in range(7):    
+                            metas.append((scan, light_idx, ref_view, src_views))
         print("dataset", self.mode, "metas:", len(metas))
         return metas
 
@@ -52,13 +52,17 @@ class MVSDataset(Dataset):
         with open(filename) as f:
             lines = f.readlines()
             lines = [line.rstrip() for line in lines]
+            
         # extrinsics: line [1,5), 4x4 matrix
         extrinsics = np.fromstring(' '.join(lines[1:5]), dtype=np.float32, sep=' ').reshape((4, 4))
+        
         # intrinsics: line [7-10), 3x3 matrix
         intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
+        
         # depth_min & depth_interval: line 11
         depth_min = float(lines[11].split()[0])
         depth_interval = float(lines[11].split()[1]) * self.interval_scale  ## WARNING
+        
         return intrinsics, extrinsics, depth_min, depth_interval
 
     def read_img(self, filename):
@@ -84,20 +88,24 @@ class MVSDataset(Dataset):
         proj_matrices = []
 
         for i, vid in enumerate(view_ids):
-            # NOTE that the id in image file names is from 1 to 49 (not 0~48)
-            # img_filename = os.path.join(self.datapath, 'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
-            # img_filename = os.path.join(self.datapath, 'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid , light_idx))
-            img_filename = os.path.join(self.datapath, 'Rectified/{}/rect_S{:0>3}_L{}.png'.format(scan, vid , light_idx))
             
-            # mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_visual_{:0>4}.png'.format(scan, vid))            
-            # mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_mask_{:0>4}.png'.format(scan, vid))
-            # depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))          
-            mask_filename = os.path.join(self.datapath, 'Depths/{}/depth_mask_{:0>4}.png'.format(scan, vid))
-            depth_filename = os.path.join(self.datapath, 'Depths/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
-            proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt').format(vid)
+            # img_filename = os.path.join(self.datapath,'Rectified/{}_train/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx)) # resolution 512x640 Nb: orig res. 1200x1600 
+            # mask_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_visual_{:0>4}.png'.format(scan, vid))                  # resolution 128x160 (.png)
+            # depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))                    # resolution 128x160  (.pfm)
+            # proj_mat_filename = os.path.join(self.datapath, 'Cameras/train/{:0>8}_cam.txt').format(vid)                               # fx=361 (1/8th of original fx=2892) ?? 
 
+
+            img_filename = os.path.join(self.datapath, 'Rectified_512x640/{}/rect_C{:0>3}_L{:0>2}.png'.format(scan, vid , light_idx))
+            mask_filename = os.path.join(self.datapath, 'Depths_512x640/{}/depth_mask_{:0>4}.png'.format(scan, vid))
+            depth_filename = os.path.join(self.datapath, 'Depths_512x640/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
+            proj_mat_filename = os.path.join(self.datapath, 'Cameras_512x640/{:0>8}_cam.txt').format(vid)
+
+            # read scene image at 512x640 
             imgs.append(self.read_img(img_filename))
-            intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
+            
+            # read cam parameters and resize intrinsics
+            intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)            
+            intrinsics[:2,:] = intrinsics[:2,:] / 4.0            
 
             # multiply intrinsics and extrinsics to get projection matrix
             proj_mat = extrinsics.copy()
@@ -105,9 +113,14 @@ class MVSDataset(Dataset):
             proj_matrices.append(proj_mat)
 
             if i == 0:  # reference view
+                # generate depth values
                 depth_values = np.arange(depth_min, depth_min + depth_interval * self.ndepths, depth_interval, dtype=np.float32)
+                # read mask and resize to 128x160
                 mask = self.read_img(mask_filename)
+                mask = mask.resize(160,128)
+                # read mask and resize to 128x160
                 depth = self.read_depth(depth_filename)
+                depth = depth[::4, ::4]                
 
         imgs = np.stack(imgs).transpose([0, 3, 1, 2])
         proj_matrices = np.stack(proj_matrices)

@@ -3,10 +3,13 @@
 # 
 # Ex: 
 #   bash ./scripts/train_DTU.sh  DTU_512x640_N3_d192_itv1.06
+#   bash ./scripts/train_DTU.sh  DTU_512x640_N3_d192_itv1.06_refine # not working
 
 TRAIN_PATH="/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/datasets/DTU/mvs_training"
 TRAINLIST="lists/dtu/train.txt"
 TESTLIST="lists/dtu/test.txt"
+
+# LOAD_CHKPT="./outputs/DTU_512x640_N3_d192_itv1.06/model_000009.ckpt"
 
 exp=$1
 PY_ARGS=${@:2}
@@ -32,9 +35,9 @@ python train.py \
 --batch_size=4  \
 --epochs=16 \
 --lr=0.001 \
---lrepochs="10,12,14:2" \
---save_freq=10 \
+--lrepochs="2,3,4,5,6,7,8,9,10,11,12,13,14,15:1.2" \
 --summary_freq=100 \
+--resume \
 --seed=0 \
 $PY_ARGS &> $LOG_DIR"/"$LOG_FILE &
 

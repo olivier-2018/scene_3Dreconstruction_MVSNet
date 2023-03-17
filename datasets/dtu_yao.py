@@ -2,9 +2,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import os
 from PIL import Image
-from datasets.data_io import * # OLI: use when running local with python -m datasets.dtu_yao
-# from data_io import * # OLI: std model 
-
+from datasets.data_io import *
 
 # the DTU dataset preprocessed by Yao Yao (only for training)
 class MVSDataset(Dataset):

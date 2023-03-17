@@ -3,12 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .module import *
 
-DEBUG1 = False # step 1. feature extraction
-DEBUG2 = False # step 2. differentiable homograph, build cost volume
-DEBUG3a = False # step 3. cost volume regularization
-DEBUG3b = False # plot depth proba
-DEBUG3c = False # plot depth expectation 
-DEBUG3d = False # plot confidence 
+DEBUG1 = False # step 1. 0 feature extraction
+DEBUG2 = False # step 2. 1 differentiable homograph, build cost volume
+DEBUG3a = False # step 3. 2 cost volume regularization
+DEBUG3b = False # plot 5 depth proba
+DEBUG3c = False # plot 6 depth expectation 
+DEBUG3d = False # plot 7 confidence 
+
+
+def get_powers(n):
+    return [p for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
 
 class FeatureNet(nn.Module):
     def __init__(self):
@@ -92,9 +96,10 @@ class RefineNet(nn.Module):
 
 
 class MVSNet(nn.Module):
-    def __init__(self, refine=True):
+    def __init__(self, refine=True, debug=0):
         super(MVSNet, self).__init__()
         self.refine = refine
+        self.debug = debug
 
         self.feature = FeatureNet()
         self.cost_regularization = CostRegNet()
@@ -114,8 +119,9 @@ class MVSNet(nn.Module):
         features = [self.feature(img) for img in imgs] # OLI torch.Size([1, 32, 296, 400]) 
         ref_feature, src_features = features[0], features[1:]  
         ref_proj, src_projs = proj_matrices[0], proj_matrices[1:]
-        # OLI DEBUG lvl 1
-        if DEBUG1:
+        
+        # DEBUG: print and plot FEATURES
+        if '0' in get_powers(self.debug):
             import cv2, re
             # plot images features
             for nview in range(len(features)): # sweep through views
@@ -127,28 +133,31 @@ class MVSNet(nn.Module):
             for nview in range(len(features)):
                 print("Matrix ref: {}\n".format(nview))
                 print(re.sub('( \[|\[|\])', '',str(proj_matrices[nview].cpu().numpy())))
-        # OLI DEBUG END
+        # DEBUG END
 
         # step 2. differentiable homograph, build cost volume
         ref_volume = ref_feature.unsqueeze(2).repeat(1, 1, num_depth, 1, 1) # OLI torch.Size([1, 32, 128, 296, 400])
         volume_sum = ref_volume
         volume_sq_sum = ref_volume ** 2  # OLI torch.Size([1, 32, 128, 296, 400])
         del ref_volume
+        
         counter = 0 # OLI
         for src_fea, src_proj in zip(src_features, src_projs):
             # warpped features
             warped_volume = homo_warping(src_fea, src_proj, ref_proj, depth_values) # OLI torch.Size([1, 32, 128, 296, 400])
-            # OLI DEBUG lvl2
-            if DEBUG2:                
+            
+            # DEBUG: plot warped views
+            if '1' in get_powers(self.debug):      
                 import cv2, re
                 # plot images features
                 for filter in range(0,warped_volume.shape[1],8): # sweep through filters every 8
                     for depth in range(0,warped_volume.shape[2],32): # sweep through depths every 32
-                        cv2.imshow('warped_volume ({}) Depth:{}, filter:{}'.format(counter,depth, filter), warped_volume.permute(3,4,1,2,0)[:,:,filter,depth].cpu().numpy())
+                        cv2.imshow('warped Feature:{} Depth:{}, filter:{}'.format(counter,depth, filter), warped_volume.permute(3,4,1,2,0)[:,:,filter,depth].cpu().numpy())
                     cv2.waitKey(0)
                 cv2.destroyAllWindows()
                 counter += 1
-            # OLI DEBUG END            
+            # DEBUG END           
+             
             if self.training:
                 volume_sum = volume_sum + warped_volume
                 volume_sq_sum = volume_sq_sum + warped_volume ** 2
@@ -157,35 +166,39 @@ class MVSNet(nn.Module):
                 volume_sum += warped_volume
                 volume_sq_sum += warped_volume.pow_(2)  # the memory of warped_volume has been modified
             del warped_volume
+            
         # aggregate multiple feature volumes by variance
         volume_variance = volume_sq_sum.div_(num_views).sub_(volume_sum.div_(num_views).pow_(2))
 
         # step 3. cost volume regularization
         cost_reg = self.cost_regularization(volume_variance)
         # cost_reg = F.upsample(cost_reg, [num_depth * 4, img_height, img_width], mode='trilinear')
-        # OLI DEBUG - plot regularization
-        if DEBUG3a:            
+        
+        # DEBUG: plot regularization
+        if '2' in get_powers(self.debug):
             import cv2, re
             for depth in range(0,cost_reg.shape[2],32): # sweep through depths every 32
                 cv2.imshow('Depths regularization - Depth:{}'.format(depth), cost_reg.permute(3,4,2,0,1)[:,:,depth,0,0].cpu().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-        # OLI DEBUG END  
+        # DEBUG END  
         
         cost_reg = cost_reg.squeeze(1)
         prob_volume = F.softmax(cost_reg, dim=1)  # OLI torch.Size([1, 128, 296, 400])
-        # OLI DEBUG lvl 3b  - plot depths proba
-        if DEBUG3b:
+        
+        # DEBUG: plot depths proba
+        if '3' in get_powers(self.debug):
             import cv2, re
             for depth in range(0,64,4): # sweep through depths every ... prob_volume.shape[1]
                 cv2.imshow('Depths proba - Depth:{}'.format(depth), prob_volume.permute(2,3,1,0)[:,:,depth,0].cpu().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-        # OLI DEBUG END  
+        # DEBUG END  
         
         depth = depth_regression(prob_volume, depth_values=depth_values)
-        # OLI DEBUG lvl 3c - plot expectation
-        if DEBUG3c:
+        
+        #  DEBUG: plot expectation
+        if '4' in get_powers(self.debug):
             import cv2, re
             cv2.imshow('Depth expectation', depth.permute(1,2,0)[:,:,0].cpu().numpy()/depth[0,:,:].cpu().numpy().max())
             cv2.waitKey(0)
@@ -197,13 +210,14 @@ class MVSNet(nn.Module):
             prob_volume_sum4 = 4 * F.avg_pool3d(F.pad(prob_volume.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1, padding=0).squeeze(1)   # [1, 256, 296, 400]
             depth_index = depth_regression(prob_volume, depth_values=torch.arange(num_depth, device=prob_volume.device, dtype=torch.float)).long() # [1, 296, 400]
             photometric_confidence = torch.gather(prob_volume_sum4, 1, depth_index.unsqueeze(1)).squeeze(1) # [1, 296, 400]
-            
-        if DEBUG3d:
+        
+        #  DEBUG: plot photometric confidence
+        if '5' in get_powers(self.debug):
             import cv2, re
             cv2.imshow('photometric confidence', photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-        # OLI DEBUG END  
+        #  DEBUG END  
 
         # step 4. depth map refinement
         if not self.refine:
