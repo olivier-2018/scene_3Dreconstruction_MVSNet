@@ -3,13 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .module import *
 
-DEBUG1 = False # step 1. 0 feature extraction
-DEBUG2 = False # step 2. 1 differentiable homograph, build cost volume
-DEBUG3a = False # step 3. 2 cost volume regularization
-DEBUG3b = False # plot 5 depth proba
-DEBUG3c = False # plot 6 depth expectation 
-DEBUG3d = False # plot 7 confidence 
-
 
 def get_powers(n):
     return [p for p,v in enumerate(bin(n)[:1:-1]) if int(v)]

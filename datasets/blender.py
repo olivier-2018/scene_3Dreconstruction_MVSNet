@@ -28,7 +28,8 @@ class MVSDataset(Dataset):
 
         pair_file = "Cameras_512x640/"+self.pairfile
         print ("Pair filename: ", pair_file)
-        # scans
+        
+        # scans (No of camera views in pairfile)
         for scan in scans:
             # read the pair file
             with open(os.path.join(self.datapath, pair_file)) as f:
@@ -44,7 +45,7 @@ class MVSDataset(Dataset):
                     else:
                         for light_idx in range(7):    
                             metas.append((scan, light_idx, ref_view, src_views))
-        print("dataset", self.mode, "metas:", len(metas))
+        print("mode: ", self.mode, ", # metas: ", len(metas))
         return metas
 
     def __len__(self):

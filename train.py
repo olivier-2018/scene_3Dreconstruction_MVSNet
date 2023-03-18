@@ -54,12 +54,12 @@ parser.add_argument('--save_freq', type=int, default=1, help='save checkpoint fr
 parser.add_argument('--seed', type=int, default=0, metavar='S', help='0 for random seed')
 
 parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
-                    '0: print matrices and plot features '
-                    '1: plot warped views '
-                    '2: plot regularization '
-                    '3: plot depths proba '
-                    '4: plot expectation '
-                    '5: plot photometric confidence ')
+                    '0: print matrices and plot features (add 1) '
+                    '1: plot warped views (add 2) '
+                    '2: plot regularization (add 4) '
+                    '3: plot depths proba (add 8) '
+                    '4: plot expectation (add 16) '
+                    '5: plot photometric confidence (add 32) ')
 
 args = parser.parse_args()
 
@@ -106,6 +106,7 @@ print_args(args)
 
 # dataset, dataloader
 ##################################################
+print ("Building dataloaders.")
 MVSDataset = find_dataset_def(args.dataset)
 train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", args.NtrainViews, args.numdepth, args.interval_scale, Nlights=args.Nlights, pairfile=args.pairfile)
 test_dataset = MVSDataset(args.testpath, args.testlist, "test", args.NtestViews, args.numdepth, args.interval_scale, Nlights=args.Nlights, pairfile=args.pairfile)
@@ -115,11 +116,13 @@ TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_wor
 
 # model, optimizer, loss
 ##################################################
+print ("Initializing model and sending to cuda.")
 model = MVSNet(refine=args.refine, debug=args.debug_MVSnet)
 if args.mode in ["train", "test"]:
     model = nn.DataParallel(model)
 model.cuda()
 model_loss = mvsnet_loss
+print ("Initializing optimizer.")
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.wd)
 
 # load parameters
@@ -130,16 +133,17 @@ if (args.mode == "train" and args.resume) or (args.mode == "test" and not args.l
     saved_models = sorted(saved_models, key=lambda x: int(x.split('_')[-1].split('.')[0]))
     # use the latest checkpoint file
     loadckpt = os.path.join(args.logdir, saved_models[-1])
-    print("resuming", loadckpt)
+    print("Resuming from ", loadckpt)
     state_dict = torch.load(loadckpt)
     model.load_state_dict(state_dict['model'])
     optimizer.load_state_dict(state_dict['optimizer'])
     start_epoch = state_dict['epoch'] + 1
 elif args.loadckpt:
     # load checkpoint file specified by args.loadckpt
-    print("loading model {}".format(args.loadckpt))
+    print("Loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
     model.load_state_dict(state_dict['model'])
+
 print("start at epoch {}".format(start_epoch))
 print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
 
@@ -166,9 +170,10 @@ def train():
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 save_images(logger, 'train', image_outputs, global_step)
-                print('Epoch {}/{}, Iter {}/{}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
+                print('Epoch {}/{}, Iter {}/{}, LR:{:.2E}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
                         epoch_idx, args.epochs, 
                         batch_idx,len(TrainImgLoader), 
+                        optimizer.param_groups[0]["lr"],
                         loss,
                         scalar_outputs["abs_depth_error"],
                         scalar_outputs["thres2mm_error"],
@@ -196,9 +201,10 @@ def train():
             if do_summary:
                 save_scalars(logger, 'test', scalar_outputs, global_step)
                 save_images(logger, 'test', image_outputs, global_step)
-                print('Epoch {}/{}, Iter {}/{}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
+                print('Epoch {}/{}, Iter {}/{}, LR:{:.2E}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
                         epoch_idx, args.epochs, 
                         batch_idx,len(TestImgLoader), 
+                        optimizer.param_groups[0]["lr"],
                         loss,
                         scalar_outputs["abs_depth_error"],
                         scalar_outputs["thres2mm_error"],
@@ -220,8 +226,7 @@ def test():
         loss, scalar_outputs, image_outputs = test_sample(sample, detailed_summary=True)
         avg_test_scalars.update(scalar_outputs)
         del scalar_outputs, image_outputs
-        print('Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(batch_idx, len(TestImgLoader), loss,
-                                                                    time.time() - start_time))
+        print('Iter {}/{}, test loss = {:.3f}, time = {:3f}'.format(batch_idx, len(TestImgLoader), loss, time.time() - start_time))
         if batch_idx % 100 == 0:
             print("Iter {}/{}, test results = {}".format(batch_idx, len(TestImgLoader), avg_test_scalars.mean()))
     print("final", avg_test_scalars)
