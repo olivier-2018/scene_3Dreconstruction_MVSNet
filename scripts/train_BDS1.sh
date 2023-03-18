@@ -9,6 +9,9 @@ TRAINLIST="lists/BDS1/train150.txt"
 TESTLIST="lists/BDS1/test150.txt"
 PAIRFILE="pair_33x10.txt"
 
+# LOAD_CHKPT="./outputs/model_000009.ckpt"
+
+
 exp=$1
 PY_ARGS=${@:2}
 
@@ -42,3 +45,4 @@ python train.py \
 --seed=0 \
 $PY_ARGS &> $LOG_DIR"/"$LOG_FILE &
 
+# --loadckpt=$LOAD_CHKPT \

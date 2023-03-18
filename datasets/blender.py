@@ -29,7 +29,7 @@ class MVSDataset(Dataset):
         pair_file = "Cameras_512x640/"+self.pairfile
         print ("Pair filename: ", pair_file)
         
-        # scans (No of camera views in pairfile)
+        # scans (list of scans/scenes)
         for scan in scans:
             # read the pair file
             with open(os.path.join(self.datapath, pair_file)) as f:

@@ -66,7 +66,7 @@ args = parser.parse_args()
 # multi-debug function
 ####################### 
 def get_powers(n):
-    return [p for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
+    return [str(p) for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
 
 
 # check for resume

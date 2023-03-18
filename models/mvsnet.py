@@ -5,7 +5,7 @@ from .module import *
 
 
 def get_powers(n):
-    return [p for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
+    return [str(p) for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
 
 class FeatureNet(nn.Module):
     def __init__(self):
@@ -100,26 +100,37 @@ class MVSNet(nn.Module):
             self.refine_network = RefineNet()
 
     def forward(self, imgs, proj_matrices, depth_values):
-        imgs = torch.unbind(imgs, 1)
+        imgs = torch.unbind(imgs, 1) # list of NtrainViews tensors [B, RGBch, 512, 640]
         proj_matrices = torch.unbind(proj_matrices, 1)
         assert len(imgs) == len(proj_matrices), "Different number of images and projection matrices"
         img_height, img_width = imgs[0].shape[2], imgs[0].shape[3]
         num_depth = depth_values.shape[1]
         num_views = len(imgs)
 
+        # DEBUG: plot input image
+        if "0" in get_powers(self.debug):
+            import cv2, re
+            # plot images features
+            for view in range(len(imgs)): # sweep through views (ref view + src views)
+                for RGBchannel in range(0,imgs[view].shape[1],1): # select filter every 4 
+                    cv2.imshow('[IMG] View:{} RGBchannel:{}'.format(view, RGBchannel), imgs[view].permute(2,3,1,0)[:,:,RGBchannel,0].cpu().detach().numpy())
+                cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        # DEBUG END
+        
         # step 1. feature extraction
         # in: images; out: 32-channel feature maps
-        features = [self.feature(img) for img in imgs] # OLI torch.Size([1, 32, 296, 400]) 
+        features = [self.feature(img) for img in imgs] # list of NtrainViews tensors [B, 32, 128, 160]
         ref_feature, src_features = features[0], features[1:]  
         ref_proj, src_projs = proj_matrices[0], proj_matrices[1:]
         
         # DEBUG: print and plot FEATURES
-        if '0' in get_powers(self.debug):
+        if "0" in get_powers(self.debug):
             import cv2, re
             # plot images features
             for nview in range(len(features)): # sweep through views
                 for filter in range(0,features[nview].shape[1],4): # select filter every 4 
-                    cv2.imshow('View:{} filter:{}'.format(nview, filter), features[nview].permute(2,3,1,0)[:,:,filter,0].cpu().numpy())
+                    cv2.imshow('[FEATURES]view:{} filter:{}'.format(nview, filter), features[nview].permute(2,3,1,0)[:,:,filter,0].cpu().detach().numpy())
                 cv2.waitKey(0)
             cv2.destroyAllWindows()
             # print Transform. matrices
@@ -129,23 +140,23 @@ class MVSNet(nn.Module):
         # DEBUG END
 
         # step 2. differentiable homograph, build cost volume
-        ref_volume = ref_feature.unsqueeze(2).repeat(1, 1, num_depth, 1, 1) # OLI torch.Size([1, 32, 128, 296, 400])
+        ref_volume = ref_feature.unsqueeze(2).repeat(1, 1, num_depth, 1, 1) # tensor [1, 32, 128, 128, 160]
         volume_sum = ref_volume
-        volume_sq_sum = ref_volume ** 2  # OLI torch.Size([1, 32, 128, 296, 400])
+        volume_sq_sum = ref_volume ** 2  # tensor [1, 32, 128, 128, 160]
         del ref_volume
         
         counter = 0 # OLI
         for src_fea, src_proj in zip(src_features, src_projs):
             # warpped features
-            warped_volume = homo_warping(src_fea, src_proj, ref_proj, depth_values) # OLI torch.Size([1, 32, 128, 296, 400])
+            warped_volume = homo_warping(src_fea, src_proj, ref_proj, depth_values) # tensor [1, 32, 128, 128, 160]
             
             # DEBUG: plot warped views
             if '1' in get_powers(self.debug):      
                 import cv2, re
                 # plot images features
                 for filter in range(0,warped_volume.shape[1],8): # sweep through filters every 8
-                    for depth in range(0,warped_volume.shape[2],32): # sweep through depths every 32
-                        cv2.imshow('warped Feature:{} Depth:{}, filter:{}'.format(counter,depth, filter), warped_volume.permute(3,4,1,2,0)[:,:,filter,depth].cpu().numpy())
+                    for depth in range(0,warped_volume.shape[2],12): # sweep through depths every 12
+                        cv2.imshow('[WARPED-FEAT] viewpair:{} Depth:{}, filter:{}'.format(counter,depth, filter), warped_volume.permute(3,4,1,2,0)[:,:,filter,depth].cpu().detach().numpy())
                     cv2.waitKey(0)
                 cv2.destroyAllWindows()
                 counter += 1
@@ -170,20 +181,21 @@ class MVSNet(nn.Module):
         # DEBUG: plot regularization
         if '2' in get_powers(self.debug):
             import cv2, re
-            for depth in range(0,cost_reg.shape[2],32): # sweep through depths every 32
-                cv2.imshow('Depths regularization - Depth:{}'.format(depth), cost_reg.permute(3,4,2,0,1)[:,:,depth,0,0].cpu().numpy())
+            for depth in range(0,cost_reg.shape[2],16): # sweep through depths every 16
+                cv2.imshow('[REG] depth:{}'.format(depth), cost_reg.permute(3,4,2,0,1)[:,:,depth,0,0].cpu().detach().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         # DEBUG END  
         
-        cost_reg = cost_reg.squeeze(1)
-        prob_volume = F.softmax(cost_reg, dim=1)  # OLI torch.Size([1, 128, 296, 400])
+        cost_reg = cost_reg.squeeze(1)            # [B, 1, D, H, W]
+        prob_volume = F.softmax(cost_reg, dim=1)  # [B, D, H, W]
         
         # DEBUG: plot depths proba
         if '3' in get_powers(self.debug):
             import cv2, re
-            for depth in range(0,64,4): # sweep through depths every ... prob_volume.shape[1]
-                cv2.imshow('Depths proba - Depth:{}'.format(depth), prob_volume.permute(2,3,1,0)[:,:,depth,0].cpu().numpy())
+            
+            for depth in range(0,prob_volume.shape[1],16): # sweep through depths every 16
+                cv2.imshow('[PROBA] - Depth:{}'.format(depth), prob_volume.permute(2,3,1,0)[:,:,depth,0].cpu().detach().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         # DEBUG END  
@@ -193,7 +205,7 @@ class MVSNet(nn.Module):
         #  DEBUG: plot expectation
         if '4' in get_powers(self.debug):
             import cv2, re
-            cv2.imshow('Depth expectation', depth.permute(1,2,0)[:,:,0].cpu().numpy()/depth[0,:,:].cpu().numpy().max())
+            cv2.imshow('[EXPECTATION]', depth.permute(1,2,0)[:,:,0].cpu().detach().numpy()/depth[0,:,:].cpu().detach().numpy().max())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         # OLI DEBUG END  
@@ -207,7 +219,7 @@ class MVSNet(nn.Module):
         #  DEBUG: plot photometric confidence
         if '5' in get_powers(self.debug):
             import cv2, re
-            cv2.imshow('photometric confidence', photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy())
+            cv2.imshow('[photometric confidence]', photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         #  DEBUG END  

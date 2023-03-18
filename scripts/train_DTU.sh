@@ -42,3 +42,4 @@ python train.py \
 --seed=0 \
 $PY_ARGS &> $LOG_DIR"/"$LOG_FILE &
 
+# --loadckpt=$LOAD_CHKPT \
