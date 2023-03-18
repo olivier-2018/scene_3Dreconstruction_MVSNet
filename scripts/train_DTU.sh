@@ -28,12 +28,13 @@ python train.py \
 --dataset=dtu_yao  \
 --trainpath=$TRAIN_PATH \
 --logdir=$LOG_DIR \
+--Nlights=7 \
 --trainlist lists/dtu/train.txt  \
 --testlist lists/dtu/test.txt  \
 --numdepth=192  \
 --interval_scale=1.06 \
 --batch_size=4  \
---epochs=16 \
+--epochs=18 \
 --lr=0.001 \
 --lrepochs="2,3,4,5,6,7,8,9,10,11,12,13,14,15:1.2" \
 --summary_freq=100 \

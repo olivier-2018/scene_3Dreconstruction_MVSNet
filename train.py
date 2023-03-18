@@ -31,6 +31,7 @@ parser.add_argument('--trainpath', default="", help='train datapath')
 parser.add_argument('--testpath', help='test datapath')
 parser.add_argument('--trainlist', default="lists/dtu/train.txt", help='train list')
 parser.add_argument('--testlist', default="lists/dtu/test.txt", help='test list')
+parser.add_argument('--pairfile', default="pair.txt", help='pair filename')
 
 parser.add_argument('--epochs', type=int, default=16, help='number of epochs to train')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
@@ -39,8 +40,10 @@ parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 
 parser.add_argument('--batch_size', type=int, default=1, help='train batch size')
 parser.add_argument('--numdepth', type=int, default=192, help='the number of depth values')
-parser.add_argument('--interval_scale', type=float, default=1.06, help='the number of depth values')
+parser.add_argument('--interval_scale', type=float, default=1.06, help='the number of depth values (DTU=1.06)')
 parser.add_argument('--Nlights', type=int, default=7, help='number of light sources in the dataset (DTU=7)')
+parser.add_argument('--NtrainViews', type=int, default=3, help='number of views used for training (DTU=3)')
+parser.add_argument('--NtestViews', type=int, default=5, help='number of views used for training (DTU=5)')
 
 parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
 parser.add_argument('--logdir', default='./outputs/debug', help='the directory to save checkpoints/logs')
@@ -104,8 +107,8 @@ print_args(args)
 # dataset, dataloader
 ##################################################
 MVSDataset = find_dataset_def(args.dataset)
-train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", 3, args.numdepth, args.interval_scale, Nlights=args.Nlights)
-test_dataset = MVSDataset(args.testpath, args.testlist, "test", 5, args.numdepth, args.interval_scale, Nlights=args.Nlights)
+train_dataset = MVSDataset(args.trainpath, args.trainlist, "train", args.NtrainViews, args.numdepth, args.interval_scale, Nlights=args.Nlights, pairfile=args.pairfile)
+test_dataset = MVSDataset(args.testpath, args.testlist, "test", args.NtestViews, args.numdepth, args.interval_scale, Nlights=args.Nlights, pairfile=args.pairfile)
 
 TrainImgLoader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=10, drop_last=True)
 TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=10, drop_last=False)

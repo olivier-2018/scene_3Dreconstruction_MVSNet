@@ -23,7 +23,7 @@ class MVSDataset(Dataset):
         with open(self.listfile) as f:
             scans = f.readlines()
             scans = [line.rstrip() for line in scans]
-
+        
         # scans
         for scan in scans:
             pair_file = "Cameras/pair.txt"
@@ -89,6 +89,14 @@ class MVSDataset(Dataset):
             depth_filename = os.path.join(self.datapath, 'Depths/{}_train/depth_map_{:0>4}.pfm'.format(scan, vid))                    # resolution 128x160  (.pfm)
             proj_mat_filename = os.path.join(self.datapath, 'Cameras/train/{:0>8}_cam.txt').format(vid)                               # fx=361 (1/8th of original fx=2892) ?? 
 
+            # Note on DTU intrinsics:
+            # 1600x1200 with intrinsics (2892.3 0 823.2)
+            # 640x512 with intrinsics (361.5 0.0 82.9)
+            # step1: 1600x1200 truncated to 1280x1024 --> intrinsics (2892.3 0 663.2) 
+            # step2: rows 1&2 divided by 8 --> intrinsics (361.5 0 82.9) 
+            # but why 8 ?  1280 to 640 is a factor 2 only
+            
+            
             imgs.append(self.read_img(img_filename))
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
 
