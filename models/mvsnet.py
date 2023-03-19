@@ -152,7 +152,7 @@ class MVSNet(nn.Module):
             
             # DEBUG: plot warped views
             if '1' in get_powers(self.debug):      
-                import cv2, re
+                import cv2
                 # plot images features
                 for filter in range(0,warped_volume.shape[1],8): # sweep through filters every 8
                     for depth in range(0,warped_volume.shape[2],12): # sweep through depths every 12
@@ -180,7 +180,7 @@ class MVSNet(nn.Module):
         
         # DEBUG: plot regularization
         if '2' in get_powers(self.debug):
-            import cv2, re
+            import cv2
             for depth in range(0,cost_reg.shape[2],16): # sweep through depths every 16
                 cv2.imshow('[REG] depth:{}'.format(depth), cost_reg.permute(3,4,2,0,1)[:,:,depth,0,0].cpu().detach().numpy())
             cv2.waitKey(0)
@@ -192,8 +192,7 @@ class MVSNet(nn.Module):
         
         # DEBUG: plot depths proba
         if '3' in get_powers(self.debug):
-            import cv2, re
-            
+            import cv2            
             for depth in range(0,prob_volume.shape[1],16): # sweep through depths every 16
                 cv2.imshow('[PROBA] - Depth:{}'.format(depth), prob_volume.permute(2,3,1,0)[:,:,depth,0].cpu().detach().numpy())
             cv2.waitKey(0)
@@ -202,24 +201,29 @@ class MVSNet(nn.Module):
         
         depth = depth_regression(prob_volume, depth_values=depth_values)
         
-        #  DEBUG: plot expectation
-        if '4' in get_powers(self.debug):
-            import cv2, re
-            cv2.imshow('[EXPECTATION]', depth.permute(1,2,0)[:,:,0].cpu().detach().numpy()/depth[0,:,:].cpu().detach().numpy().max())
+        #  DEBUG: plot depth expectation
+        if '4' in get_powers(self.debug): # add 16
+            import cv2
+            cv2.imshow('[DEPTH EXPECT.]', depth.permute(1,2,0)[:,:,0].cpu().detach().numpy()/depth[0,:,:].cpu().detach().numpy().max())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         # OLI DEBUG END  
         
         with torch.no_grad():
-            # photometric confidence
-            prob_volume_sum4 = 4 * F.avg_pool3d(F.pad(prob_volume.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1, padding=0).squeeze(1)   # [1, 256, 296, 400]
-            depth_index = depth_regression(prob_volume, depth_values=torch.arange(num_depth, device=prob_volume.device, dtype=torch.float)).long() # [1, 296, 400]
-            photometric_confidence = torch.gather(prob_volume_sum4, 1, depth_index.unsqueeze(1)).squeeze(1) # [1, 296, 400]
+            # photometric confidence: extracts the probability at the depth indices
+            prob_volume_sum4 = 4 * F.avg_pool3d(F.pad(prob_volume.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1, padding=0).squeeze(1)   # [B, D, H, W]
+            depth_index = depth_regression(prob_volume, depth_values=torch.arange(num_depth, device=prob_volume.device, dtype=torch.float)).long()    # [B, H, W]
+            photometric_confidence = torch.gather(prob_volume_sum4, 1, depth_index.unsqueeze(1)).squeeze(1)                                           # [B, H, W]
         
         #  DEBUG: plot photometric confidence
-        if '5' in get_powers(self.debug):
-            import cv2, re
-            cv2.imshow('[photometric confidence]', photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy())
+        if '5' in get_powers(self.debug): # add 32
+            import cv2
+            p = photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy()
+            mask = (p>0.5)
+            p2 = p.copy()
+            p2[~mask] = 0
+            cv2.imshow('[photometric confidence]', p)
+            cv2.imshow('[photo-conf>0.5]', p2)            
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         #  DEBUG END  
