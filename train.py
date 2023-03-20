@@ -69,7 +69,7 @@ def get_powers(n):
     return [str(p) for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
 
 
-# check for resume
+# check things if resume
 ################################################
 if args.resume:
     assert args.mode == "train", 'Resume run requested but training not requested (set --mode to train)'

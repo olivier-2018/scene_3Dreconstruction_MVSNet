@@ -93,6 +93,7 @@ class MVSNet(nn.Module):
         super(MVSNet, self).__init__()
         self.refine = refine
         self.debug = debug
+        print('[MVSNet] init (debug={})'.format(self.debug))
 
         self.feature = FeatureNet()
         self.cost_regularization = CostRegNet()

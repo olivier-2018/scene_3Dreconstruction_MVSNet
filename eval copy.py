@@ -20,44 +20,54 @@ import cv2
 from plyfile import PlyData, PlyElement
 from PIL import Image
 
-cudnn.benchmark = True
+DEBUG = False
 
+
+cudnn.benchmark = True
 parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse. May be different from the original implementation')
 
-parser.add_argument('--model', default='mvsnet', help='select model')
 
-parser.add_argument('--dataset', default='dtu_yao_eval', help='select dataset')
-parser.add_argument('--testpath', help='testing data path')
-parser.add_argument('--testlist', help='testing scan list')
-parser.add_argument('--pairfile', default="pair.txt", help='pair filename')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/DTU/d192/model_000014.ckpt", help='load a specific checkpoint')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/DTU/d128/model_000009.ckpt", help='load a specific checkpoint')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/DTU/d128_itvl4/model_000030.ckpt", help='load a specific checkpoint')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/BDS1/d128_itvl2.5/model_000013.ckpt", help='load a specific checkpoint')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/BDS1/d256_itvl2.5/model_000032.ckpt", help='load a specific checkpoint')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/BDS1_inv/d256_itvl2.5/model_000019.ckpt", help='load a specific checkpoint')
+# parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/BDS2/d256_itvl2.5/model_000023.ckpt", help='load a specific checkpoint')
+parser.add_argument('--loadckpt', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/checkpoints/BDS2/d128_itvl5.5_4views/model_000025.ckpt", help='load a specific checkpoint')
 
-parser.add_argument('--batch_size', type=int, default=1, help='testing batch size')
-parser.add_argument('--numdepth', type=int, default=192, help='the number of depth values')
-parser.add_argument('--interval_scale', type=float, default=1.06, help='the depth interval scale')
 
-parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
-parser.add_argument('--outdir', default='./outputs', help='output dir')
-parser.add_argument('--display', action='store_true', help='display depth images and masks')
+# parser.add_argument('--testpath', default="/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/DTU/mvs_testing_1200x1600", help='testing data path')
+# parser.add_argument('--testpath', default="/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/merlin/dataset-Mario_Set_Full_to_Empty_20220715_1200x1600", help='testing data path')
+# parser.add_argument('--testpath', default="/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/merlin/dataset-Mario_Set_with_GT_20220930_1200x1600", help='testing data path')
+# parser.add_argument('--testpath', default="/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/Blender/BDS1_mvs_eval_1200x1600", help='testing data path')
+parser.add_argument('--testpath', default="/home/deeplearning/BRO/EVAL_CODE/MVS/datasets/Blender/BDS2_mvs_eval_1200x1600", help='testing data path')
 
-parser.add_argument('--NviewGen', type=int, default=5, help='number of views used to generate depth maps (DTU=5)')
-parser.add_argument('--NviewFilter', type=int, default=10, help='number of src views used while filtering depth maps (DTU=10)')
-parser.add_argument('--photomask', type=float, default=0.8, help='photometric confidence mask: pixels with photo confidence below threshold are dismissed')
-parser.add_argument('--geomask', type=int, default=3, help='geometric view mask: pixels not seen by at least a certain number of views are dismissed ')
-parser.add_argument('--condmask_pixel', type=float, default=1.0, help='conditional mask pixel: pixels which reproject back into the ref view at more than the threshold number of pixels are dismissed')
-parser.add_argument('--condmask_depth', type=float, default=0.01, help='conditional mask on relative depth difference: pixels with depths prediction values above a threshold (1%) are dismissed')
+# parser.add_argument('--testlist', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/lists/dtu/test.txt", help='testing scan list')
+# parser.add_argument('--testlist', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/lists/merlin/eval.txt", help='testing scan list')
+parser.add_argument('--testlist', default="/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/lists/blender/eval.txt", help='testing scan list')
 
-parser.add_argument('--debug_eval', type=int, default=0, help='debug the evaluation script ')
-parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
-                    '0: print matrices and plot features (add 1) '
-                    '1: plot warped views (add 2) '
-                    '2: plot regularization (add 4) '
-                    '3: plot depths proba (add 8) '
-                    '4: plot expectation (add 16) '
-                    '5: plot photometric confidence (add 32) ')
+# parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/DTU/d192_Gen5views_49cams', help='output dir')
+# parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/DTU/d128_Gen2views_2cams', help='output dir')
+# parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/DTU/d128_itvl4_Gen4views_4cams', help='output dir')
+# parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/merlin/merlin_/BDS1_d256_itvl2.5_chkpt31', help='output dir')
+# parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/Blender/BDS1_inv/d256_itvl2.5_chkpt19_Gen2views_33x2_nofilters', help='output dir')
+# parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/Blender/BDS2/d256_itvl2.5_chkpt23_Gen4views_47x4', help='output dir')
+parser.add_argument('--outdir', default='/home/deeplearning/BRO/EVAL_CODE/MVS/MVSNet_pytorch/outputs/Blender/BDS2/d128_itvl4_chkpt25_Gen4views_48x4', help='output dir')
 
+parser.add_argument('--numdepth', type=int, default=128, help='the number of depth values')
+parser.add_argument('--interval_scale', type=float, default=1.6, help='the depth interval scale')
+
+# parser.add_argument('--dataset', default='dtu_yao_eval', help='select dataset')
+parser.add_argument('--dataset', default='merlin_eval', help='select dataset')
 
 # Check line280 for img filename format
 
+
+parser.add_argument('--model', default='mvsnet', help='select model')
+parser.add_argument('--batch_size', type=int, default=1, help='testing batch size')
+parser.add_argument('--display', action='store_true', help='display depth images and masks')
+# parser.add_argument('--display', action='store_false', help='display depth images and masks')
 
 # parse arguments and check
 args = parser.parse_args()
@@ -78,6 +88,7 @@ def read_camera_parameters(filename):
     intrinsics[:2, :] /= 4  ### RESCALE
     return intrinsics, extrinsics
 
+
 # read an image
 def read_img(filename):
     img = Image.open(filename)
@@ -85,9 +96,11 @@ def read_img(filename):
     np_img = np.array(img, dtype=np.float32) / 255.
     return np_img
 
+
 # read a binary mask
 def read_mask(filename):
     return read_img(filename) > 0.5
+
 
 # save a binary mask
 def save_mask(filename, mask):
@@ -95,12 +108,12 @@ def save_mask(filename, mask):
     mask = mask.astype(np.uint8) * 255
     Image.fromarray(mask).save(filename)
 
+
 # read a pair file, [(ref_view1, [src_view1-1, ...]), (ref_view2, [src_view2-1, ...]), ...]
 def read_pair_file(filename):
     data = []
     with open(filename) as f:
-        num_viewpoint = int(f.readline())
-        # 49 viewpoints
+        num_viewpoint = int(f.readline())   # 49 viewpoints
         for view_idx in range(num_viewpoint):
             ref_view = int(f.readline().rstrip())
             src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
@@ -110,23 +123,18 @@ def read_pair_file(filename):
 #======SAVE_DEPTH============================================================================================================
 
 # run MVS model to save depth maps and confidence maps
-def save_depth():
+def save_depth(N_GenViews=2):
     # N_GenViews = 2 # OLI (Min:2, default: 5) depth inference only using the ref view and first nviews-1 src views from pair_file.txt
-    print("============ Generating DEPTH MAPS using {} views".format(args.NviewGen)) # OLI
+    print("============ Evaluating DEPTHS using {} views".format(N_GenViews)) # OLI
     
-    # dataloader
-    MVSDataset = find_dataset_def(args.dataset)
-    test_dataset = MVSDataset(datapath=args.testpath, 
-                              listfile=args.testlist, 
-                              mode="test", 
-                              nviews=args.NviewGen, 
-                              ndepths=args.numdepth, 
-                              interval_scale=args.interval_scale, 
-                              pairfile=args.pairfile) 
-    TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=10, drop_last=False)
-    
+    # dataset, dataloader
+    MVSDataset = find_dataset_def(args.dataset) # Oli: import class
+    test_dataset = MVSDataset(args.testpath, args.testlist, "test", N_GenViews, args.numdepth, args.interval_scale) # Oli: create class instance
+    TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4, drop_last=False)
+
     # model
-    model = MVSNet(refine=False, debug=args.debug_MVSnet)
+    model = MVSNet(refine=False)
+    # model = MVSNet(refine=True) # OLI - refine NN not trained
     model = nn.DataParallel(model)
     model.cuda()
 
@@ -140,17 +148,15 @@ def save_depth():
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader): 
             # info:  sample => dict_keys(['imgs', 'proj_matrices', 'depth_values', 'filename']) with sample["imgs"].shape=torch.Size([1, 2, 3, 1184, 1600])=[B, Nimg, RGB, H, W]
-            
             # OLI DEBUG
-            if args.debug_eval:
+            if DEBUG:
                 print("## OLI: DEBUG1\nbatch_idx:".format(batch_idx)) 
                 print ("sample: ",sample.keys())
-                for iview in range(args.NviewGen):
+                for iview in range(N_GenViews):
                     cv2.imshow('view:{} batch:{}'.format(iview, batch_idx), sample["imgs"].permute(3,4,2,0,1)[::2,::2,:,0,iview].numpy()) # OLI     
                 cv2.waitKey(0)
                 # cv2.destroyAllWindows()
-            # OLI 
-            
+            # OLI DEBUG END
             sample_cuda = tocuda(sample)
             outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
             outputs = tensor2numpy(outputs)
@@ -160,20 +166,17 @@ def save_depth():
 
             # save depth maps and confidence maps
             for filename, depth_est, photometric_confidence in zip(filenames, outputs["depth"], outputs["photometric_confidence"]):    
-                
-                # folder filenames
+                # create folders
                 acquisition_folder = args.testpath.split('/')[-1]
                 depth_filename = os.path.join(args.outdir, acquisition_folder, filename.format('depth_est', '.pfm'))
                 confidence_filename = os.path.join(args.outdir, acquisition_folder, filename.format('confidence', '.pfm'))
                 
-                # create folders
                 os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
                 os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
                 
                 # save depth maps
                 save_pfm(depth_filename, depth_est)
                 print("PFM saved: {}".format(depth_filename))
-                
                 # save confidence maps
                 save_pfm(confidence_filename, photometric_confidence)
 
@@ -189,9 +192,7 @@ def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, i
         step 3: project back the interpolated src_img depths (now available on the projected ref_img points) onto the ref_img frame        
     """
     width, height = depth_ref.shape[1], depth_ref.shape[0]
-    
     ## step1. project reference pixels to the source view
-    ##########
     # reference view x, y
     x_ref, y_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
     x_ref, y_ref = x_ref.reshape([-1]), y_ref.reshape([-1]) # flatten
@@ -206,7 +207,6 @@ def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, i
     xy_src = K_xyz_src[:2] / K_xyz_src[2:3]
 
     ## step2. reproject the source view points with source view depth estimation
-    ##########
     # find the depth estimation of the source view
     x_src = xy_src[0].reshape([height, width]).astype(np.float32)
     y_src = xy_src[1].reshape([height, width]).astype(np.float32)
@@ -248,7 +248,9 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
 
     # ================ CONDITIONAL MASK ================
     # Oli: Establish mask based on conditions: projected_pts_dist < 1 pixel & depth_diff < 1%         
-    mask = np.logical_and(dist < args.condmask_pixel, relative_depth_diff < args.condmask_depth) # (296, 400) default / DTU
+    # mask = np.logical_and(dist < 1, relative_depth_diff < 0.01) # (296, 400) default / DTU
+    mask = np.logical_and(dist < 5, relative_depth_diff < 0.05) # (296, 400) Merlin
+    # mask = np.logical_and(dist < 10, relative_depth_diff < 0.1) # (296, 400)
     
     print("conditional mask: {}/{} ({}%)".format(mask.sum(), mask.shape[0]*mask.shape[1], 100*mask.sum()/(mask.shape[0]*mask.shape[1])))
     depth_reprojected[~mask] = 0
@@ -256,7 +258,7 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     return mask, depth_reprojected, x2d_src, y2d_src
 
 
-def filter_depth(dataset_folder, scan, out_folder, plyfilename):
+def filter_depth(dataset_folder, scan, out_folder, plyfilename, NviewFilter):
     print("===== FILTER DEPTHs =====") # OLI
     print("Dataset:{}\n",format(dataset_folder))
     
@@ -265,7 +267,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
     vertex_colors = []
 
     # Read pair file
-    pair_file = os.path.join(dataset_folder, "Cameras", args.pairfile)
+    pair_file = os.path.join(dataset_folder, "Cameras/pair.txt")
     pair_data = read_pair_file(pair_file)
     nviews = len(pair_data)
     print("Reading pair files:\n{}".format(pair_data))
@@ -279,14 +281,14 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         
         # load the camera parameters for REFERENCE VIEW
         ref_intrinsics, ref_extrinsics = read_camera_parameters(
-            os.path.join(dataset_folder, 'cams/{:0>8}_cam.txt'.format(ref_view))) # DTU testing
-            # os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(ref_view))) # OLI
+            # os.path.join(dataset_folder, 'cams/{:0>8}_cam.txt'.format(ref_view)))
+            os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(ref_view))) # OLI
         
         # load the reference image
         # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
-        ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
+        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
         # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.png'.format(scan, ref_view))) #OLI - Merlin  
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/rect_S{:0>3}_L0.png'.format(scan, ref_view))) #OLI - Blender
+        ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/rect_S{:0>3}_L0.png'.format(scan, ref_view))) #OLI - Blender
         
         
         # load the estimated depth of the reference view
@@ -301,8 +303,8 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
 
         # ================== PHOTO MASK =================== 
         # compute the photo MASK 
-        photo_mask = confidence > args.photomask # DTU
-        # photo_mask = confidence > 0 # Blender
+        # photo_mask = confidence > 0.8 # DTU
+        photo_mask = confidence > 0 # Blender
    
         # Initialize variable for conditinoal mask
         all_srcview_depth_ests = []
@@ -312,7 +314,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
 
         # compute the geometric MASK  
         geo_mask_sum = 0
-        for src_view in src_views[:args.NviewFilter]: # only use the first NviewFilter views of pairfile.txt
+        for src_view in src_views[:NviewFilter]: # only use the first NviewFilter views of pairfile.txt
         # for src_view in src_views: # filter depth using all src views from pair_file.txt (for each ref view)
             
             # camera parameters of the SOURCE VIEW
@@ -338,7 +340,8 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         
         # ================ geo MASK =====================
         #  at least 3 source views matched  
-        geo_mask = geo_mask_sum >= args.geomask # DTU, info Oli: only take pixels which have been included in at least 3 masks
+        # geo_mask = geo_mask_sum >= 3 # DTU, info Oli: only take pixels which have been included in at least 3 masks
+        geo_mask = geo_mask_sum >= 1 # info Oli: only take pixels which have been included in at least x masks
         
         
         # ==== FILTER ==== combination of all masks
@@ -414,11 +417,11 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
 
 
 if __name__ == '__main__':
-
+    N_GenViews = 4 # OLI (Min:2, default: 5) depth inference the ref view and first nviews-1 src views from pair_file.txt
+    NviewFilter = 4 # OLI (Min:1, Max: as per pair.txt file) only use limited number of SOURCE views from pair.txt 
+    
     # step1. save all the depth maps and the masks in outputs directory
-    #  nb: depth inference the ref view and first nviews-1 src views from pair_file.txt
-    save_depth()
-
+    save_depth(N_GenViews)
 
     with open(args.testlist) as f:
         scans = f.readlines()
@@ -433,7 +436,5 @@ if __name__ == '__main__':
         out_folder = os.path.join(args.outdir, acquisition_folder, scan)
         
         # step2. filter saved depth maps with photometric confidence maps and geometric constraints
-        # NviewFilter  (Min:1, Max: as per pair.txt file) only use limited number of SOURCE views from pair.txt 
-        
-        plyfilename = os.path.join(args.outdir, acquisition_folder, 'mvsnet{:0>3}_l3.ply'.format(scan_id))
-        filter_depth(dataset_folder, scan, out_folder, plyfilename ) 
+        # filter_depth(dataset_folder, out_folder, os.path.join(args.outdir, 'mvsnet{:0>3}_l3.ply'.format(scan_id)))
+        filter_depth(dataset_folder, scan, out_folder, os.path.join(args.outdir, acquisition_folder, 'mvsnet{:0>3}_l3.ply'.format(scan_id)), NviewFilter) # OLI

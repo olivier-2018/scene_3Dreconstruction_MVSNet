@@ -14,6 +14,7 @@ class MVSDataset(Dataset):
         self.nviews = nviews
         self.ndepths = ndepths
         self.interval_scale = interval_scale
+        self.pairfile = kwargs.get("pairfile", "pair.txt")
 
         assert self.mode in ["train", "val", "test"]
         self.metas = self.build_list()
@@ -25,8 +26,8 @@ class MVSDataset(Dataset):
             scans = [line.rstrip() for line in scans]
         
         # scans
-        for scan in scans:
-            pair_file = "Cameras/pair.txt"
+        pair_file = "Cameras/"+self.pairfile
+        for scan in scans:            
             # read the pair file
             with open(os.path.join(self.datapath, pair_file)) as f:
                 num_viewpoint = int(f.readline())
@@ -94,8 +95,7 @@ class MVSDataset(Dataset):
             # 640x512 with intrinsics (361.5 0.0 82.9)
             # step1: 1600x1200 truncated to 1280x1024 --> intrinsics (2892.3 0 663.2) 
             # step2: rows 1&2 divided by 8 --> intrinsics (361.5 0 82.9) 
-            # but why 8 ?  1280 to 640 is a factor 2 only
-            
+            # but why 8 ?  1280 to 640 is a factor 2 only            
             
             imgs.append(self.read_img(img_filename))
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)

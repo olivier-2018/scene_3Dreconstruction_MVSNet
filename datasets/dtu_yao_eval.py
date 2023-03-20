@@ -15,6 +15,7 @@ class MVSDataset(Dataset):
         self.nviews = nviews
         self.ndepths = ndepths
         self.interval_scale = interval_scale
+        self.pairfile = kwargs.get("pairfile", "pair.txt")
 
         assert self.mode == "test"
         self.metas = self.build_list()
@@ -25,10 +26,10 @@ class MVSDataset(Dataset):
             scans = f.readlines()
             scans = [line.rstrip() for line in scans]
 
-        # scans ['scan1', 'scan4', ...]
-        for scan in scans:
-            # pair_file = "{}/pair.txt".format(scan)
-            pair_file = "Cameras/pair.txt" # OLI
+        # pair_file = "{}/pair.txt".format(scan)
+        pair_file = "Cameras/"+self.pairfile
+        
+        for scan in scans: # scans is a list of subfolders: ['scan1', 'scan4', ...]
             # read the pair file
             with open(os.path.join(self.datapath, pair_file)) as f:
                 num_viewpoint = int(f.readline())
@@ -37,7 +38,7 @@ class MVSDataset(Dataset):
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
                     metas.append((scan, ref_view, src_views))
-        print("Dataset:{} Views(pair-file):{} Scenes: {} Metas:{} ".format(self.mode, num_viewpoint, len(scans), len(metas)))
+        print("[DataLoader] Mode:{} Nviews_pairfile:{} #scenes:{} #metas:{} ".format(self.mode, num_viewpoint, len(scans), len(metas)))
         return metas
 
     def __len__(self):
@@ -83,10 +84,10 @@ class MVSDataset(Dataset):
         proj_matrices = []
 
         for i, vid in enumerate(view_ids):
-            # img_filename = os.path.join(self.datapath, '{}/images/{:0>8}.jpg'.format(scan, vid))
-            img_filename = os.path.join(self.datapath, 'Rectified/{}/{:0>8}.jpg'.format(scan, vid)) # OLI-
-            
+            # img_filename = os.path.join(self.datapath, '{}/images/{:0>8}.jpg'.format(scan, vid)) 
             # proj_mat_filename = os.path.join(self.datapath, '{}/cams/{:0>8}_cam.txt'.format(scan, vid))
+            
+            img_filename = os.path.join(self.datapath, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, vid+1)) 
             proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt'.format(vid)) # OLI -use same cam settings for all scenes (scans)
 
             imgs.append(self.read_img(img_filename))
@@ -98,8 +99,7 @@ class MVSDataset(Dataset):
             proj_matrices.append(proj_mat)
 
             if i == 0:  # reference view
-                depth_values = np.arange(depth_min, depth_interval * (self.ndepths - 0.5) + depth_min, depth_interval,
-                                         dtype=np.float32)
+                depth_values = np.arange(depth_min, depth_interval * (self.ndepths - 0.5) + depth_min, depth_interval, dtype=np.float32)
 
         imgs = np.stack(imgs).transpose([0, 3, 1, 2])
         proj_matrices = np.stack(proj_matrices)
