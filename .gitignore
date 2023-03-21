@@ -1,4 +1,3 @@
-.vscode/
 npm-debug.log
 .coverage
 .devcontainer/docker-compose.yml
@@ -13,6 +12,5 @@ __pycache__
 outputs/
 checkpoints/
 events.out.*
-tools-utils/
 .python-version
 data/

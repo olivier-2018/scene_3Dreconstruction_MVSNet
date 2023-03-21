@@ -55,8 +55,9 @@ parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for
                     '5: plot photometric confidence (add 32) ')
 parser.add_argument('--debug_depth_gen', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
                     '0: plot input image (add 1) '
-                    '1: plot depth predictions for each cam (add 2) '
-                    '2: plot depth predictions confidence for each cam (add 4) ')
+                    '1: plot depth predictions and resp. confidence for each cam (add 2) '
+                    '3: plot depth with masks (add 4)'
+                    )
 
 
 # Check line280 for img filename format
@@ -97,7 +98,7 @@ def read_mask(filename):
 
 # save a binary mask
 def save_mask(filename, mask):
-    assert mask.dtype == np.bool
+    assert mask.dtype == np.bool_
     mask = mask.astype(np.uint8) * 255
     Image.fromarray(mask).save(filename)
 
@@ -147,17 +148,17 @@ def save_depth():
         for batch_idx, sample in enumerate(TestImgLoader): 
             # info:  sample => dict_keys(['imgs', 'proj_matrices', 'depth_values', 'filename']) with sample["imgs"].shape=torch.Size([1, 2, 3, 1184, 1600])=[B, Nimg, RGB, H, W]
             
-            # OLI DEBUG
-            if '0' in get_powers(self.debug): # add 1
-                print("## OLI: DEBUG1\nBatch_idx: {}".format(batch_idx)) 
+            #  DEBUG
+            if '0' in get_powers(args.debug_depth_gen): # add 1
+                print("## [DEBUG] save_depth, batch_idx: {}".format(batch_idx)) 
                 # print ("sample keys: ",sample.keys())
                 for iview in range(args.NviewGen):
                     BRG_img = sample["imgs"].permute(3,4,2,0,1)[::2,::2,:,0,iview].numpy()
                     RGB_img = cv2.cvtColor(BRG_img, cv2.COLOR_BGR2RGB)
-                    cv2.imshow('view:{} batch:{}'.format(iview, batch_idx), RGB_img) # OLI     
+                    cv2.imshow('view:{} batch:{} Res.:{}'.format(iview, batch_idx, str(RGB_img.shape)), RGB_img) # OLI     
                 cv2.waitKey(0)
                 cv2.destroyAllWindows()
-            # OLI 
+            # END DEBUG 
             
             sample_cuda = tocuda(sample)
             outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
@@ -185,6 +186,19 @@ def save_depth():
                 # save confidence maps
                 save_pfm(confidence_filename, photometric_confidence)
 
+                #  DEBUG
+                if '1' in get_powers(args.debug_depth_gen): # add 2
+                    depth_esti_norm = (depth_est - np.min(depth_est)) / (np.max(depth_est) - np.min(depth_est))
+                    
+                    print ("depth res.: ", depth_est.shape)
+                    print ("depth Min/Max: ",np.min(depth_est), np.max(depth_est))
+                    print ("conf. Min/Max: ",np.min(photometric_confidence), np.max(photometric_confidence))
+                    
+                    cv2.imshow("[depth estim.] view:{} res.:{}".format(batch_idx, str(depth_esti_norm.shape)), np.uint8(depth_esti_norm * 255)) 
+                    cv2.imshow("[confidence] view:{}".format(batch_idx), np.uint8(photometric_confidence * 255)) 
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                    
 
 
 #########FILTER_DEPTH#####################################################################################################3
@@ -258,7 +272,7 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     # Oli: Establish mask based on conditions: projected_pts_dist < 1 pixel & depth_diff < 1%         
     mask = np.logical_and(dist < args.condmask_pixel, relative_depth_diff < args.condmask_depth) # (296, 400) default / DTU
     
-    print("conditional mask: {}/{} ({}%)".format(mask.sum(), mask.shape[0]*mask.shape[1], 100*mask.sum()/(mask.shape[0]*mask.shape[1])))
+    print("conditional mask: {}/{} ({:.2f}%)".format(mask.sum(), mask.shape[0]*mask.shape[1], 100*mask.sum()/(mask.shape[0]*mask.shape[1])))
     depth_reprojected[~mask] = 0
 
     return mask, depth_reprojected, x2d_src, y2d_src
@@ -276,7 +290,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
     pair_file = os.path.join(dataset_folder, "Cameras", args.pairfile)
     pair_data = read_pair_file(pair_file)
     nviews = len(pair_data)
-    print("Reading pair files:\n{}".format(pair_data))
+    print("Reading pair files:\n{}\n".format(pair_data))
     
     # TODO: hardcode size
     # used_mask = [np.zeros([296, 400], dtype=np.bool) for _ in range(nviews)]
@@ -291,24 +305,24 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(ref_view))) # unified Camera path
         
         # RESCALE intrinsics: assume the feature is 1/4 of the original image size
-        ref_intrinsics[:2, :] /= 4  ### 
+        ref_intrinsics[:2, :] /= 4.0  ### 
         
         # load the reference image
         # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
-        ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
+        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
         # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.png'.format(scan, ref_view))) #OLI - Merlin  
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/rect_S{:0>3}_L0.png'.format(scan, ref_view))) #OLI - Blender
-        
+        ref_img = read_img(os.path.join(dataset_folder, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, ref_view+1))) # 1200x1600
         
         # load the estimated depth of the reference view
-        ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]
+        ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]  # (296, 400)
         
         # load the photometric mask of the reference view
-        confidence = read_pfm(os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view)))[0]
-        print("confidence percentiles: 25%:{:03f} 50%:{:03f} 75%{:0>3}% 90%:{:03f}".format(np.percentile(confidence, 25), 
-                                                                np.percentile(confidence, 50), 
-                                                                np.percentile(confidence, 75), 
-                                                                np.percentile(confidence, 90)) )
+        confidence = read_pfm(os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view)))[0] # (296, 400)
+        
+        print("confidence percentiles: 25%:{:.1f}% 50%:{:.1f}% 75%:{:.1f}% 90%:{:.1f}%".format(np.percentile(confidence, 25)*100, 
+                                                                                            np.percentile(confidence, 50)*100, 
+                                                                                            np.percentile(confidence, 75)*100, 
+                                                                                            np.percentile(confidence, 90)*100) )
 
         # ================== PHOTO MASK =================== 
         # compute the photo MASK 
@@ -328,18 +342,18 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             
             # camera parameters of the SOURCE VIEW
             src_intrinsics, src_extrinsics = read_camera_parameters(
-                # os.path.join(dataset_folder, 'Cameras/{}/{:0>8}_cam.txt'.format(scan, src_view)))
+                # os.path.join(dataset_folder, 'Cameras/{}/{:0>8}_cam.txt'.format(scan, src_view))) # orig
                 os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(src_view)))
             
             # RESCALE intrinsics: assume the feature is 1/4 of the original image size
-            src_intrinsics[:2, :] /= 4           
+            src_intrinsics[:2, :] /= 4.0           
             
             # the estimated depth of the source view
             src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
             
             print("SRC view...", end="") # OLI
             geo_mask, depth_reprojected, x2d_src, y2d_src = check_geometric_consistency(ref_depth_est, ref_intrinsics, ref_extrinsics,
-                                                                                        src_depth_est, src_intrinsics, src_extrinsics)
+                                                                                        src_depth_est, src_intrinsics, src_extrinsics) # (296, 400)
             
             geo_mask_sum += geo_mask.astype(np.int32) # (296, 400) with int values 0,1,2... (adding mask of each src_view)
             all_srcview_depth_ests.append(depth_reprojected) # list of arrays of shape (296, 400)
@@ -348,8 +362,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             all_srcview_geomask.append(geo_mask)
 
         # compute average of depth prediction over all views
-        # depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
-        depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1) # OLI
+        depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
         
         # ================ geo MASK =====================
         #  at least 3 source views matched  
@@ -365,26 +378,29 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         save_mask(os.path.join(out_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
         save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
 
-        print("SUMMARY: Ref_view: {:0>2}, photo/geo/final-mask:{:02f}/{:02f}/{:02f}(frac.)\n".format(ref_view,
-                                                                                    photo_mask.mean(),geo_mask.mean(), final_mask.mean()))
+        print("SUMMARY: Ref_view: {:0>2}, photo/geo/final-mask:{:.2f}%/{:.2f}%/{:.2f}%\n".format(ref_view,
+                                                                                                     photo_mask.mean()*100,
+                                                                                                     geo_mask.mean()*100, 
+                                                                                                     final_mask.mean()*100))
 
-        if args.display:
-            import cv2
-            cv2.imshow('ref_img', ref_img[::4, ::4, ::-1])
-            # cv2.imshow('ref_depth', ref_depth_est / 800)
-            # cv2.imshow('ref_depth * photo_mask', ref_depth_est * photo_mask.astype(np.float32) / 800)
-            # cv2.imshow('ref_depth * geo_mask', ref_depth_est * geo_mask.astype(np.float32) / 800)
-            # cv2.imshow('ref_depth * mask', ref_depth_est * final_mask.astype(np.float32) / 800)
-            ref_depth_est_NonDim = (ref_depth_est - np.min(ref_depth_est)) / (np.max(ref_depth_est)-np.min(ref_depth_est)) # OLI
-            cv2.imshow('ref_depth', ref_depth_est_NonDim)
-            # cv2.imshow('ref_depth * photo_mask', ref_depth_est_NonDim * photo_mask.astype(np.float32) )
-            # cv2.imshow('ref_depth * geo_mask', ref_depth_est_NonDim * geo_mask.astype(np.float32) )
-            cv2.imshow('ref_depth * mask', ref_depth_est_NonDim * final_mask.astype(np.float32) )
+        #  DEBUG: plot depth with masks
+        if '2' in get_powers(args.debug_depth_gen): # add 4
+            
+            img_norm = cv2.resize(cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB), ref_depth_est.transpose().shape)
+            cv2.imshow('ref_img', img_norm)
+
+            ref_depth_est_norm = (ref_depth_est - np.min(ref_depth_est)) / (np.max(ref_depth_est)-np.min(ref_depth_est)) 
+            cv2.imshow('ref_depth', ref_depth_est_norm)
+            cv2.imshow('photo_mask', ref_depth_est_norm * photo_mask.astype(np.float32) )
+            cv2.imshow('geo_mask', ref_depth_est_norm * geo_mask.astype(np.float32) )
+            cv2.imshow('final mask', ref_depth_est_norm * final_mask.astype(np.float32) )
+            
             cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
 
 
-        # Oli: BUILD 3D points (vertices) to be kept (appended) for a given ref_img
+        # BUILD 3D points (vertices) to be kept (appended) for a given ref_img
         height, width = depth_est_averaged.shape[:2] 
         x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
         # valid_points = np.logical_and(final_mask, ~used_mask[ref_view])
@@ -395,10 +411,8 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         color = ref_img[0:-16:4, 0::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
         
         # color = ref_img[1::4, 1::4, :][valid_points]  # hardcoded for Merlin dataset
-        xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics),
-                            np.vstack((x, y, np.ones_like(x))) * depth)
-        xyz_world = np.matmul(np.linalg.inv(ref_extrinsics),
-                              np.vstack((xyz_ref, np.ones_like(x))))[:3]
+        xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
+        xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
         vertexs.append(xyz_world.transpose((1, 0)))
         vertex_colors.append((color * 255).astype(np.uint8)) # list of arrays containing vertices (x,y,z)
 
@@ -409,8 +423,10 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         #     src_y = all_srcview_y[idx].astype(np.int)
         #     src_x = all_srcview_x[idx].astype(np.int)
         #     used_mask[src_view][src_y[src_mask], src_x[src_mask]] = True
+        
+        
 
-    # Oli: Once all reference images processed, concatenate all vertices and save as ply format
+    #  Once all reference images processed, concatenate all vertices and save as ply format
     vertexs = np.concatenate(vertexs, axis=0)
     vertex_colors = np.concatenate(vertex_colors, axis=0)
     vertexs = np.array([tuple(v) for v in vertexs], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
@@ -433,7 +449,6 @@ if __name__ == '__main__':
     # step1. save all the depth maps and the masks in outputs directory
     #  nb: depth inference the ref view and first nviews-1 src views from pair_file.txt
     # save_depth()
-
 
     with open(args.testlist) as f:
         scans = f.readlines()

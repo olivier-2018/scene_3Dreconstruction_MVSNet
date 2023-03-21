@@ -1,0 +1,103 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": 
+    [
+        {
+            "name": "MVSNet: train_DTU",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--mode", "train",
+                "--dataset","dtu_yao",
+                "--trainpath","data/DTU/mvs_training",
+                "--logdir", "outputs/debug",
+                "--loadckpt", "./outputs/DTU_512x640_N3_d192_itv1.06/model_000017.ckpt",
+                "--trainlist", "lists/dtu/train.txt",
+                "--testlist", "lists/dtu/test.txt",
+                "--NtrainViews", "3",
+                "--Nlights", "7",
+                "--numdepth", "192",
+                "--interval_scale", "1.06",
+                "--batch_size", "1",
+                "--epochs", "16",
+                "--lr", "0.001",
+                "--lrepochs", "10,12,14:2",
+                "--save_freq", "1",
+                "--summary_freq", "1",
+                "--seed", "0",
+                "--debug_MVSnet", "32"
+            ]
+        },
+        {
+            "name": "MVSNet: eval_DTU",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--dataset", "dtu_yao_eval",
+                "--testpath", "data/DTU/mvs_training",
+                "--outdir", "./outputs/debug/eval",
+                "--testlist", "lists/dtu/test_only1.txt",
+                "--pairfile", "pair.txt",
+                "--batch_size", "1",
+                "--numdepth", "192", 
+                "--interval_scale", "1.06",
+                "--loadckpt", "outputs/DTU_512x640_N3_d192_itv1.06/model_000017.ckpt",
+                "--NviewGen", "5",
+                "--NviewFilter", "10",
+                "--photomask", "0.75",
+                "--geomask", "3",
+                "--condmask_pixel", "1",
+                "--condmask_depth", "0.01",
+                "--debug_MVSnet", "0",
+                "--debug_depth_gen", "4"
+            ]
+        },
+        {
+            "name": "MVSNet: train_BDS1",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--mode", "train",
+                "--dataset","blender",
+                "--trainpath","data/Blender/BDS1_mvs_training_512x640",
+                "--logdir", "outputs/debug",
+                "--loadckpt", "./outputs/BDS1_512x640_N3_d192_itv1.36/model_000127.ckpt",
+                "--pairfile", "pair_33x10.txt", 
+                "--trainlist", "lists/BDS1/train150.txt",
+                "--testlist", "lists/BDS1/test150.txt",
+                "--NtrainViews", "3",
+                "--Nlights", "0",
+                "--numdepth", "192",
+                "--interval_scale", "1.35",
+                "--batch_size", "1",
+                "--epochs", "16",
+                "--lr", "0.001",
+                "--lrepochs", "10,12,14:2",
+                "--save_freq", "1",
+                "--summary_freq", "50",
+                "--seed", "0",
+                "--debug_MVSnet", "48"
+            ]
+        },
+    ]
+}
+
+
+
+
+
