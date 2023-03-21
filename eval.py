@@ -46,7 +46,6 @@ parser.add_argument('--geomask', type=int, default=3, help='geometric view mask:
 parser.add_argument('--condmask_pixel', type=float, default=1.0, help='conditional mask pixel: pixels which reproject back into the ref view at more than the threshold number of pixels are dismissed')
 parser.add_argument('--condmask_depth', type=float, default=0.01, help='conditional mask on relative depth difference: pixels with depths prediction values above a threshold (1%) are dismissed')
 
-parser.add_argument('--debug_eval', type=int, default=0, help='debug the evaluation script ')
 parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
                     '0: print matrices and plot features (add 1) '
                     '1: plot warped views (add 2) '
@@ -54,10 +53,16 @@ parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for
                     '3: plot depths proba (add 8) '
                     '4: plot expectation (add 16) '
                     '5: plot photometric confidence (add 32) ')
+parser.add_argument('--debug_depth_gen', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
+                    '0: plot input image (add 1) '
+                    '1: plot depth predictions for each cam (add 2) '
+                    '2: plot depth predictions confidence for each cam (add 4) ')
 
 
 # Check line280 for img filename format
 
+def get_powers(n):
+    return [str(p) for p,v in enumerate(bin(n)[:1:-1]) if int(v)]
 
 # parse arguments and check
 args = parser.parse_args()
@@ -70,12 +75,13 @@ def read_camera_parameters(filename):
     with open(filename) as f:
         lines = f.readlines()
         lines = [line.rstrip() for line in lines]
+        
     # extrinsics: line [1,5), 4x4 matrix
     extrinsics = np.fromstring(' '.join(lines[1:5]), dtype=np.float32, sep=' ').reshape((4, 4))
+    
     # intrinsics: line [7-10), 3x3 matrix
     intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
-    # TODO: assume the feature is 1/4 of the original image size
-    intrinsics[:2, :] /= 4  ### RESCALE
+    
     return intrinsics, extrinsics
 
 # read an image
@@ -142,13 +148,15 @@ def save_depth():
             # info:  sample => dict_keys(['imgs', 'proj_matrices', 'depth_values', 'filename']) with sample["imgs"].shape=torch.Size([1, 2, 3, 1184, 1600])=[B, Nimg, RGB, H, W]
             
             # OLI DEBUG
-            if args.debug_eval:
-                print("## OLI: DEBUG1\nbatch_idx:".format(batch_idx)) 
-                print ("sample: ",sample.keys())
+            if '0' in get_powers(self.debug): # add 1
+                print("## OLI: DEBUG1\nBatch_idx: {}".format(batch_idx)) 
+                # print ("sample keys: ",sample.keys())
                 for iview in range(args.NviewGen):
-                    cv2.imshow('view:{} batch:{}'.format(iview, batch_idx), sample["imgs"].permute(3,4,2,0,1)[::2,::2,:,0,iview].numpy()) # OLI     
+                    BRG_img = sample["imgs"].permute(3,4,2,0,1)[::2,::2,:,0,iview].numpy()
+                    RGB_img = cv2.cvtColor(BRG_img, cv2.COLOR_BGR2RGB)
+                    cv2.imshow('view:{} batch:{}'.format(iview, batch_idx), RGB_img) # OLI     
                 cv2.waitKey(0)
-                # cv2.destroyAllWindows()
+                cv2.destroyAllWindows()
             # OLI 
             
             sample_cuda = tocuda(sample)
@@ -166,7 +174,7 @@ def save_depth():
                 depth_filename = os.path.join(args.outdir, acquisition_folder, filename.format('depth_est', '.pfm'))
                 confidence_filename = os.path.join(args.outdir, acquisition_folder, filename.format('confidence', '.pfm'))
                 
-                # create folders
+                # create folders 'depth_est' & 'confidence'
                 os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
                 os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
                 
@@ -279,8 +287,11 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         
         # load the camera parameters for REFERENCE VIEW
         ref_intrinsics, ref_extrinsics = read_camera_parameters(
-            os.path.join(dataset_folder, 'cams/{:0>8}_cam.txt'.format(ref_view))) # DTU testing
-            # os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(ref_view))) # OLI
+            # os.path.join(dataset_folder, 'cams/{:0>8}_cam.txt'.format(ref_view))) # DTU testing
+            os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(ref_view))) # unified Camera path
+        
+        # RESCALE intrinsics: assume the feature is 1/4 of the original image size
+        ref_intrinsics[:2, :] /= 4  ### 
         
         # load the reference image
         # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
@@ -319,6 +330,10 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             src_intrinsics, src_extrinsics = read_camera_parameters(
                 # os.path.join(dataset_folder, 'Cameras/{}/{:0>8}_cam.txt'.format(scan, src_view)))
                 os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(src_view)))
+            
+            # RESCALE intrinsics: assume the feature is 1/4 of the original image size
+            src_intrinsics[:2, :] /= 4           
+            
             # the estimated depth of the source view
             src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
             
@@ -417,7 +432,7 @@ if __name__ == '__main__':
 
     # step1. save all the depth maps and the masks in outputs directory
     #  nb: depth inference the ref view and first nviews-1 src views from pair_file.txt
-    save_depth()
+    # save_depth()
 
 
     with open(args.testlist) as f:

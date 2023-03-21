@@ -36,6 +36,7 @@ echo "=== Check log in file: tail -f  ${OUTDIR}/${LOG_FILE}"
 python eval.py \
 --dataset=dtu_yao_eval \
 --testpath=$TESTPATH \
+--outdir=$OUTDIR \
 --testlist=$TESTLIST \
 --pairfile=$PAIRFILE \
 --batch_size=1 \
