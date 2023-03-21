@@ -16,6 +16,7 @@ class MVSDataset(Dataset):
         self.ndepths = ndepths
         self.interval_scale = interval_scale
         self.pairfile = kwargs.get("pairfile", "pair.txt")
+        self.raw = kwargs.get("raw", True)
 
         assert self.mode == "test"
         self.metas = self.build_list()
@@ -27,7 +28,7 @@ class MVSDataset(Dataset):
             scans = [line.rstrip() for line in scans]
 
         # pair_file = "{}/pair.txt".format(scan)
-        pair_file = "Cameras_1200x1600/"+self.pairfile
+        pair_file = "Cameras/"+self.pairfile
         
         for scan in scans: # scans is a list of subfolders: ['scan1', 'scan4', ...]
             # read the pair file
@@ -48,23 +49,29 @@ class MVSDataset(Dataset):
         with open(filename) as f:
             lines = f.readlines()
             lines = [line.rstrip() for line in lines]
-        # extrinsics: line [1,5), 4x4 matrix
+            
+        # read extrinsics: line [1,5), 4x4 matrix
         extrinsics = np.fromstring(' '.join(lines[1:5]), dtype=np.float32, sep=' ').reshape((4, 4))
-        # intrinsics: line [7-10), 3x3 matrix
+        # read intrinsics: line [7-10), 3x3 matrix
         intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
-        intrinsics[:2, :] /= 4
+        intrinsics[:2, :] /= 4 # input to feature CNN factor
+        
         # depth_min & depth_interval: line 11
         depth_min = float(lines[11].split()[0])
         depth_interval = float(lines[11].split()[1]) * self.interval_scale
+        
         return intrinsics, extrinsics, depth_min, depth_interval
 
     def read_img(self, filename):
         img = Image.open(filename)
         # scale 0~255 to 0~1
         np_img = np.array(img, dtype=np.float32) / 255.
-        assert np_img.shape[:2] == (1200, 1600) 
-        ## crop to (1184, 1600)
-        np_img = np_img[:-16, :]  # do not need to modify intrinsics if cropping the bottom part
+        
+        if self.raw:
+            assert np_img.shape[:2] == (1200, 1600)             
+            np_img = np_img[:-16, :]  # crop to (1184, 1600) , do not need to modify intrinsics if cropping the bottom part
+        else:
+            assert np_img.shape[:2] == (512, 640) 
         return np_img
 
     def read_depth(self, filename):
@@ -87,11 +94,26 @@ class MVSDataset(Dataset):
             # img_filename = os.path.join(self.datapath, '{}/images/{:0>8}.jpg'.format(scan, vid)) 
             # proj_mat_filename = os.path.join(self.datapath, '{}/cams/{:0>8}_cam.txt'.format(scan, vid))
             
-            img_filename = os.path.join(self.datapath, 'Rectified_1200x1600/{}/rect_C{:0>3}_L00.png'.format(scan, vid)) 
-            proj_mat_filename = os.path.join(self.datapath, 'Cameras_1200x1600/{:0>8}_cam.txt'.format(vid)) 
-
+            # Store image filenames
+            if self.raw:
+                img_filename = os.path.join(self.datapath, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, vid+1)) 
+            else:
+                if "DTU" in self.datapath:
+                    img_filename = os.path.join(self.datapath, 'Rectified/{}_train/rect_{:0>3}_3_r5000.png'.format(scan, vid+1)) 
+                elif "Blender" in self.datapath:
+                    img_filename = os.path.join(self.datapath, 'Rectified/{}/rect_{:0>3}_3_r5000.png'.format(scan, vid+1)) 
+            print ("[dataloader] img fname:", img_filename)
             imgs.append(self.read_img(img_filename))
+                
+            # Read camera parameters
+            # low res img (512x640) --> depth (128x160)
+            # high res img (1184x1600) --> depth (296x400)
+            # both have I/O CNN factor of 4 
+            proj_mat_filename = os.path.join(self.datapath, 'Cameras/{:0>8}_cam.txt'.format(vid))
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
+            if not self.raw:
+                intrinsics[0,:] /= 2.5
+                intrinsics[1,:] /= 2.3125
 
             # multiply intrinsics and extrinsics to get projection matrix
             proj_mat = extrinsics.copy()

@@ -56,7 +56,9 @@ parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for
 parser.add_argument('--debug_depth_gen', type=int, default=0, help='powers of 2 for switches selection (debug = 2⁰+2¹+2³+2⁴+...) with '
                     '0: plot input image (add 1) '
                     '1: plot depth predictions and resp. confidence for each cam (add 2) '
-                    '3: plot depth with masks (add 4)'
+                    '2: plot depth with masks (add 4)'
+                    '3: plot 3D point-cloud for each view (add 8)'
+                    '4: plot FINAL 3D point-cloud (add 16)'
                     )
 
 
@@ -473,7 +475,7 @@ if __name__ == '__main__':
 
     # step1. save all the depth maps and the masks in outputs directory
     #  nb: depth inference the ref view and first nviews-1 src views from pair_file.txt
-    # save_depth()
+    save_depth()
 
     with open(args.testlist) as f:
         scans = f.readlines()
