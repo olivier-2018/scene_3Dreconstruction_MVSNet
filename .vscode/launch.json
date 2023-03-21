@@ -12,7 +12,7 @@
             "program": "train.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
             "args": [
                 "--mode", "train",
                 "--dataset","dtu_yao",
@@ -42,7 +42,7 @@
             "program": "eval.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
             "args": [
                 "--dataset", "dtu_yao_eval",
                 "--testpath", "data/DTU/mvs_training",
@@ -54,13 +54,13 @@
                 "--interval_scale", "1.06",
                 "--loadckpt", "outputs/DTU_512x640_N3_d192_itv1.06/model_000017.ckpt",
                 "--NviewGen", "5",
-                "--NviewFilter", "10",
+                "--NviewFilter", "2",
                 "--photomask", "0.75",
-                "--geomask", "3",
+                "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
                 "--debug_MVSnet", "0",
-                "--debug_depth_gen", "4"
+                "--debug_depth_gen", "24"
             ]
         },
         {
@@ -70,7 +70,7 @@
             "program": "train.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
             "args": [
                 "--mode", "train",
                 "--dataset","blender",
@@ -92,6 +92,34 @@
                 "--summary_freq", "50",
                 "--seed", "0",
                 "--debug_MVSnet", "48"
+            ]
+        },
+        {
+            "name": "MVSNet: eval_BDS1",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--dataset", "dtu_yao_eval",
+                "--testpath", "data/DTU/mvs_training",
+                "--outdir", "./outputs/debug/eval",
+                "--testlist", "lists/dtu/test_only1.txt",
+                "--pairfile", "pair.txt",
+                "--batch_size", "1",
+                "--numdepth", "192", 
+                "--interval_scale", "1.06",
+                "--loadckpt", "outputs/DTU_512x640_N3_d192_itv1.06/model_000017.ckpt",
+                "--NviewGen", "5",
+                "--NviewFilter", "2",
+                "--photomask", "0.75",
+                "--geomask", "2",
+                "--condmask_pixel", "1",
+                "--condmask_depth", "0.01",
+                "--debug_MVSnet", "0",
+                "--debug_depth_gen", "24"
             ]
         },
     ]

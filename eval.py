@@ -305,19 +305,22 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(ref_view))) # unified Camera path
         
         # RESCALE intrinsics: assume the feature is 1/4 of the original image size
-        ref_intrinsics[:2, :] /= 4.0  ### 
-        
-        # load the reference image
-        # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.png'.format(scan, ref_view))) #OLI - Merlin  
-        ref_img = read_img(os.path.join(dataset_folder, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, ref_view+1))) # 1200x1600
+        ref_intrinsics[:2, :] /= 4.0  ### input/output factor from CNN 
         
         # load the estimated depth of the reference view
         ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]  # (296, 400)
         
         # load the photometric mask of the reference view
         confidence = read_pfm(os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view)))[0] # (296, 400)
+        
+        # load the reference image        
+        # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
+        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
+        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.png'.format(scan, ref_view))) #OLI - Merlin  
+        ref_img = read_img(os.path.join(dataset_folder, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, ref_view+1))) # 1200x1600
+        ref_img_resized = ref_img[0::4, 0::4, :] # img reduced to resolution of predicted depth using the IO factor from CNN
+        h_depth, w_depth = ref_depth_est.shape
+        ref_img_cropped = ref_img_resized[0:h_depth, 0:w_depth, :] 
         
         print("confidence percentiles: 25%:{:.1f}% 50%:{:.1f}% 75%:{:.1f}% 90%:{:.1f}%".format(np.percentile(confidence, 25)*100, 
                                                                                             np.percentile(confidence, 50)*100, 
@@ -386,7 +389,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         #  DEBUG: plot depth with masks
         if '2' in get_powers(args.debug_depth_gen): # add 4
             
-            img_norm = cv2.resize(cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB), ref_depth_est.transpose().shape)
+            img_norm = cv2.cvtColor(ref_img_cropped, cv2.COLOR_BGR2RGB)
             cv2.imshow('ref_img', img_norm)
 
             ref_depth_est_norm = (ref_depth_est - np.min(ref_depth_est)) / (np.max(ref_depth_est)-np.min(ref_depth_est)) 
@@ -399,16 +402,16 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             cv2.destroyAllWindows()
 
 
-
         # BUILD 3D points (vertices) to be kept (appended) for a given ref_img
         height, width = depth_est_averaged.shape[:2] 
         x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
         # valid_points = np.logical_and(final_mask, ~used_mask[ref_view])
         valid_points = final_mask
-        print("3D Pts-cloud: No of valid_points: {}/{} (average={:03f})".format(valid_points.sum(), height*width, valid_points.mean())) # OLI
+        print("3D Pts-cloud: No of valid_points: {}/{} (average={:03f})".format(valid_points.sum(), height*width, valid_points.mean())) 
+        
         x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
-        # color = ref_img[1:-16:4, 1::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
-        color = ref_img[0:-16:4, 0::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
+        # color = ref_img[0:-16:4, 0::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
+        color = ref_img_cropped[valid_points]  # scaling and cropping done above
         
         # color = ref_img[1::4, 1::4, :][valid_points]  # hardcoded for Merlin dataset
         xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
@@ -423,14 +426,24 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         #     src_y = all_srcview_y[idx].astype(np.int)
         #     src_x = all_srcview_x[idx].astype(np.int)
         #     used_mask[src_view][src_y[src_mask], src_x[src_mask]] = True
-        
-        
+
+        #  DEBUG: plot 3D point-cloud
+        if '3' in get_powers(args.debug_depth_gen): # add 8
+            
+            import open3d as o3d
+            # Create frame and point cloud
+            frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=100, origin=[0, 0, 0])
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(xyz_world.transpose((1, 0)).astype(np.float64))
+            pcd.colors = o3d.utility.Vector3dVector(color)
+            # plot (type h for help in open3d)
+            o3d.visualization.draw_geometries([frame]+[pcd], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38)
 
     #  Once all reference images processed, concatenate all vertices and save as ply format
-    vertexs = np.concatenate(vertexs, axis=0)
-    vertex_colors = np.concatenate(vertex_colors, axis=0)
-    vertexs = np.array([tuple(v) for v in vertexs], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-    vertex_colors = np.array([tuple(v) for v in vertex_colors], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
+    vertexs_xyz = np.concatenate(vertexs, axis=0)
+    vertexs_xyz_colors = np.concatenate(vertex_colors, axis=0)
+    vertexs = np.array([tuple(v) for v in vertexs_xyz], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+    vertex_colors = np.array([tuple(v) for v in vertexs_xyz_colors], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
 
     vertex_all = np.empty(len(vertexs), vertexs.dtype.descr + vertex_colors.dtype.descr)
     for prop in vertexs.dtype.names:
@@ -442,7 +455,19 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
     PlyData([el]).write(plyfilename)
     
     print("saving the final model to", plyfilename)
-
+    
+            
+    #  DEBUG: plot FINAL 3D point-cloud
+    if '4' in get_powers(args.debug_depth_gen): # add 16
+        
+        import open3d as o3d
+        # Create frame and point cloud
+        frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=100, origin=[0, 0, 0])
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(vertexs_xyz.astype(np.float64))
+        pcd.colors = o3d.utility.Vector3dVector(vertexs_xyz_colors/255)
+        # plot
+        o3d.visualization.draw_geometries([frame]+[pcd], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38)
 
 if __name__ == '__main__':
 
