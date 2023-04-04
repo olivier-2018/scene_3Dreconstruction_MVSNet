@@ -61,6 +61,7 @@ parser.add_argument('--debug_depth_gen', type=int, default=0, help='powers of 2 
                     '2: plot depth with masks (add 4)'
                     '3: plot 3D point-cloud for each view (add 8)'
                     '4: plot FINAL 3D point-cloud (add 16)'
+                    '31: ALL'
                     )
 
 
@@ -560,6 +561,7 @@ if __name__ == '__main__':
                             "bds2": "Cameras_512x640",
                             # "bds4": "Cameras_1024x1280",
                             "bds4": "Cameras_512x640",
+                            "bds6": "Cameras_1024x1280",
                         }
     
     dict_img_subfolder = {  "dtu": "Rectified_raw/{}/rect_{:0>3}_3_r5000.png",
@@ -567,6 +569,7 @@ if __name__ == '__main__':
                             "bds2": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
                             # "bds4": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
                             "bds4": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
+                            "bds6": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
                         }
     
 
@@ -575,6 +578,7 @@ if __name__ == '__main__':
                     "bds2": (512, 640),
                     # "bds4": (1024, 1280),
                     "bds4": (512, 640),
+                    "bds6": (1024, 1280),
                     }
         
     

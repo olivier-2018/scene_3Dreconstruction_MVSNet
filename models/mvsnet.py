@@ -113,7 +113,8 @@ class MVSNet(nn.Module):
             import cv2
             # plot images features
             for view in range(len(imgs)): # sweep through views (ref view + src views)
-                for RGBchannel in range(0,imgs[view].shape[1],1): # select filter every 4 
+                cv2.imshow('[IMG] View:{} RGB img'.format(view), imgs[view].permute(2,3,1,0)[:,:,:,0].cpu().detach().numpy())
+                for RGBchannel in range(0,imgs[view].shape[1],1): # show all 3 RGB channels sparately
                     cv2.imshow('[IMG] View:{} RGBchannel:{}'.format(view, RGBchannel), imgs[view].permute(2,3,1,0)[:,:,RGBchannel,0].cpu().detach().numpy())
                 cv2.waitKey(0)
             cv2.destroyAllWindows()
@@ -131,7 +132,7 @@ class MVSNet(nn.Module):
             # plot images features
             for nview in range(len(features)): # sweep through views
                 for filter in range(0,features[nview].shape[1],4): # select filter every 4 
-                    cv2.imshow('[FEATURES]view:{} filter:{}'.format(nview, filter), features[nview].permute(2,3,1,0)[:,:,filter,0].cpu().detach().numpy())
+                    cv2.imshow('[FEATURES]view:{} feat:{}'.format(nview, filter), features[nview].permute(2,3,1,0)[:,:,filter,0].cpu().detach().numpy())
                 cv2.waitKey(0)
             cv2.destroyAllWindows()
             # print Transform. matrices
@@ -157,7 +158,7 @@ class MVSNet(nn.Module):
                 # plot images features
                 for filter in range(0,warped_volume.shape[1],8): # sweep through filters every 8
                     for depth in range(0,warped_volume.shape[2],12): # sweep through depths every 12
-                        cv2.imshow('[WARPED-FEAT] viewpair:{} Depth:{}, filter:{}'.format(counter,depth, filter), warped_volume.permute(3,4,1,2,0)[:,:,filter,depth].cpu().detach().numpy())
+                        cv2.imshow('[WARPED-FEAT] Vpair:{} D:{}, F:{}'.format(counter,depth, filter), warped_volume.permute(3,4,1,2,0)[:,:,filter,depth].cpu().detach().numpy())
                     cv2.waitKey(0)
                 cv2.destroyAllWindows()
                 counter += 1
@@ -183,7 +184,7 @@ class MVSNet(nn.Module):
         if '2' in get_powers(self.debug):
             import cv2
             for depth in range(0,cost_reg.shape[2],16): # sweep through depths every 16
-                cv2.imshow('[REG] depth:{}'.format(depth), cost_reg.permute(3,4,2,0,1)[:,:,depth,0,0].cpu().detach().numpy())
+                cv2.imshow('[REG] Depth:{}'.format(depth), cost_reg.permute(3,4,2,0,1)[:,:,depth,0,0].cpu().detach().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         # DEBUG END  
@@ -195,7 +196,7 @@ class MVSNet(nn.Module):
         if '3' in get_powers(self.debug):
             import cv2            
             for depth in range(0,prob_volume.shape[1],16): # sweep through depths every 16
-                cv2.imshow('[PROBA] - Depth:{}'.format(depth), prob_volume.permute(2,3,1,0)[:,:,depth,0].cpu().detach().numpy())
+                cv2.imshow('[PROBA] Depth:{}'.format(depth), prob_volume.permute(2,3,1,0)[:,:,depth,0].cpu().detach().numpy())
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         # DEBUG END  
@@ -219,12 +220,13 @@ class MVSNet(nn.Module):
         #  DEBUG: plot photometric confidence
         if '5' in get_powers(self.debug): # add 32
             import cv2
-            p = photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy()
-            mask = (p>0.5)
-            p2 = p.copy()
-            p2[~mask] = 0
-            cv2.imshow('[photometric confidence]', p)
-            cv2.imshow('[photo-conf>0.5]', p2)            
+            proba = photometric_confidence.permute(1,2,0)[:,:,0].cpu().numpy()
+            cv2.imshow('[photometric confidence]', proba)
+            for conf_pct in [0.1, 0.25, 0.50, 0.75, 0.9]:
+                mask = (proba > conf_pct)
+                masked_proba = proba.copy()
+                masked_proba[~mask] = 0
+                cv2.imshow('[photo-conf>{}]'.format(conf_pct), masked_proba) 
             cv2.waitKey(0)
             cv2.destroyAllWindows()
         #  DEBUG END  

@@ -13,7 +13,8 @@ PAIRFILE="pair_25x10.txt"
 # LOAD_CHKPT="./outputs/BDS1_512x640_N3_d192_200_2.5_itv1.45/model_000127.ckpt"
 # LOAD_CHKPT="./outputs/BDS1_512x640_300s_N5_d192_410_2.5_itv1.25/model_000050.ckpt"
 # LOAD_CHKPT="./outputs/BDS2_512x640_N5_d192_300_2.5_itv1.31/model_000047.ckpt"
-LOAD_CHKPT="./outputs/BDS4_512x640_N5_d192_250_2.5_itv1.43/model_000023.ckpt"
+# LOAD_CHKPT="./outputs/BDS4_512x640_N5_d192_250_2.5_itv1.43/model_000023.ckpt"
+# LOAD_CHKPT="./outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000008.ckpt"
 
 
 exp=$1

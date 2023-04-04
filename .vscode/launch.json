@@ -32,7 +32,7 @@
                 "--save_freq", "1",
                 "--summary_freq", "1",
                 "--seed", "0",
-                "--debug_MVSnet", "32"
+                "--debug_MVSnet", "0"
             ]
         },
         {
@@ -226,7 +226,7 @@
                 "--pairfile", "pair_40x10.txt", 
                 "--trainlist", "lists/BDS4/train200.txt",
                 "--testlist", "lists/BDS4/test200.txt",
-                "--NtrainViews", "5",
+                "--NtrainViews", "3",
                 "--Nlights", "7",
                 "--numdepth", "192",
                 "--interval_scale", "1.43",
@@ -267,6 +267,66 @@
                 "--condmask_depth", "0.01",
                 "--debug_MVSnet", "0",
                 "--debug_depth_gen", "2"
+            ]
+        },
+        {
+            "name": "MVSNet: train_BDS6",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--mode", "train",
+                "--dataset","blender",
+                "--trainpath","data/Blender/BDS6_mvs_train_1024x1280",
+                "--logdir", "outputs/debug",
+                "--loadckpt", "./outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000009.ckpt",
+                "--pairfile", "pair_25x10.txt", 
+                "--trainlist", "lists/BDS6/train300.txt",
+                "--testlist", "lists/BDS6/test300.txt",
+                "--NtrainViews", "3",
+                "--Nlights", "7",
+                "--numdepth", "192",
+                "--interval_scale", "1.06",
+                "--batch_size", "1",
+                "--epochs", "1",
+                "--lr", "0.001",
+                "--lrepochs", "10,12,14:2",
+                "--save_freq", "1",
+                "--summary_freq", "1",
+                "--seed", "0",
+                "--debug_MVSnet", "0"
+            ]
+        },
+        {
+            "name": "MVSNet: eval_BDS6_new",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--dataset", "dataloader_eval",
+                "--dataset_name", "bds6",
+                "--testpath", "data/Blender/BDS6_mvs_train_1024x1280",
+                "--outdir", "./outputs/debug/evalB",
+                "--testlist", "lists/BDS6/eval_scene284.txt",
+                "--pairfile", "pair_25x10.txt",
+                "--batch_size", "1",
+                "--numdepth", "192", 
+                "--interval_scale", "1.06",
+                "--loadckpt", "outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000009.ckpt",
+                "--NviewGen", "5",
+                "--NviewFilter", "10",
+                "--photomask", "0.5",
+                "--geomask", "3",
+                "--condmask_pixel", "1",
+                "--condmask_depth", "0.01",
+                "--debug_MVSnet", "0",
+                "--debug_depth_gen", "24"
             ]
         },
     ]

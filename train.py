@@ -172,6 +172,7 @@ def train():
             if do_summary:
                 save_scalars(logger, 'train', scalar_outputs, global_step)
                 save_images(logger, 'train', image_outputs, global_step)
+                logger.flush()
                 print('Epoch {}/{}, Iter {}/{}, LR:{:.2E}, loss={:.3f}, abs_depth_err={:.3f}, thres2mm_error={:.3f}, thres4mm_error={:.3f}, thres8mm_error={:.3f}, time={:.3f}'.format(
                         epoch_idx, args.epochs, 
                         batch_idx,len(TrainImgLoader), 
@@ -244,22 +245,44 @@ def train_sample(sample, detailed_summary=False):
 
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     depth_est = outputs["depth"]
-
+    photo_conf = outputs['photometric_confidence']
+    mask_conf_2mm = (photo_conf > 0.5)
+    errormap = (depth_est - depth_gt).abs() * mask
+    mask_errormap_2mm = (errormap < 2.0)
+    
     loss = model_loss(depth_est, depth_gt, mask)
-    loss.backward()
-    optimizer.step()
 
     scalar_outputs = {"loss": loss}
-    image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
+    image_outputs = {"errormap": errormap,
+                     "photo_conf": photo_conf, 
+                     "depth_est": depth_est * mask, 
+                     "depth_gt": sample["depth"],
                      "ref_img": sample["imgs"][:, 0],
-                     "mask": sample["mask"]}
+                     }
     if detailed_summary:
-        image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
+
+        masked_em = errormap.cpu().detach().numpy().copy()
+        masked_em[~mask_errormap_2mm.cpu().detach().numpy()] = 0.0
+        masked_em[mask_errormap_2mm.cpu().detach().numpy()] = 1.0
+        masked_em[~(mask.cpu().detach().numpy()>0.5)] = 0.0
+        image_outputs["errormap_2mm_mask"] = masked_em
+                
+        masked_conf = photo_conf.cpu().detach().numpy().copy()
+        masked_conf[~mask_conf_2mm.cpu().detach().numpy()] = 0.0
+        masked_conf[mask_conf_2mm.cpu().detach().numpy()] = 1.0
+        masked_conf[~(mask.cpu().detach().numpy()>0.5)] = 0.0
+        image_outputs["photo_conf_50pct"] = masked_conf
+        
+        image_outputs["mask"] = sample["mask"]
+        
         scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
         scalar_outputs["thres2mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 2)
         scalar_outputs["thres4mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 4)
         scalar_outputs["thres8mm_error"] = Thres_metrics(depth_est, depth_gt, mask > 0.5, 8)
 
+    loss.backward()
+    optimizer.step()
+    
     return tensor2float(loss), tensor2float(scalar_outputs), image_outputs
 
 

@@ -98,6 +98,8 @@ def save_images(logger, mode, images_dict, global_step):
             for idx in range(len(value)):
                 name = '{}/{}_{}'.format(mode, key, idx)
                 logger.add_image(name, preprocess(name, value[idx]), global_step)
+    
+    logger.flush() # OLI
 
 
 class DictAverageMeter(object):
