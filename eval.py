@@ -21,14 +21,14 @@ from plyfile import PlyData, PlyElement
 from PIL import Image
 import open3d as o3d
 
-
 cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse. May be different from the original implementation')
 
 parser.add_argument('--model', default='mvsnet', help='select model')
 
-parser.add_argument('--dataset', default='dtu_yao_eval', help='select dataset')
+parser.add_argument('--dataset', default='dtu_yao', choices=['dtu_yao', 'blender', 'dataloader_eval'],help='select dataloader file')
+parser.add_argument('--dataset_name', default='dtu', choices=['dtu', 'bds1', 'bds2', 'bds4', 'bds6', 'bds7', 'bin'],help='select dataset type')
 parser.add_argument('--testpath', help='testing data path')
 parser.add_argument('--testlist', help='testing scan list')
 parser.add_argument('--pairfile', default="pair.txt", help='pair filename')
@@ -121,7 +121,6 @@ def read_pair_file(filename):
             data.append((ref_view, src_views))
     return data
 
-
 # Get Open3D box
 def get_o3d_frame_bbox(scale = 1, delta = (-127.0, -130.3, -5.0)):
     
@@ -153,13 +152,16 @@ def get_o3d_frame_bbox(scale = 1, delta = (-127.0, -130.3, -5.0)):
     
     return frame, bounding_box, bounding_box2 
 
-
 #======SAVE_DEPTH============================================================================================================
 
 # run MVS model to save depth maps and confidence maps
-def save_depth():
-    # N_GenViews = 2 # OLI (Min:2, default: 5) depth inference only using the ref view and first nviews-1 src views from pair_file.txt
-    print("============ Generating DEPTH MAPS using {} views".format(args.NviewGen)) # OLI
+def save_depth(cam_subfolder, img_subfolder,img_res):
+    
+    # NviewGen (Min:2, default: 5) depth inference only using the ref view and first nviews-1 src views from pair_file.txt
+    print("============ Generating DEPTH MAPS using {} views".format(args.NviewGen))
+    print ("cam_subfolder: ",cam_subfolder)
+    print ("img_subfolder: ",img_subfolder)
+    print ("img_res: ",img_res)
     
     # dataloader
     MVSDataset = find_dataset_def(args.dataset)
@@ -169,7 +171,12 @@ def save_depth():
                               nviews=args.NviewGen, 
                               ndepths=args.numdepth, 
                               interval_scale=args.interval_scale, 
-                              pairfile=args.pairfile) 
+                              pairfile=args.pairfile,
+                              cam_subfolder = cam_subfolder,
+                              img_subfolder = img_subfolder,
+                              img_res = img_res, 
+                              dataset_name = args.dataset_name) 
+    
     TestImgLoader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=10, drop_last=False)
     
     # model
@@ -233,9 +240,19 @@ def save_depth():
                     print ("depth res.: ", depth_est.shape)
                     print ("depth Min/Max: ",np.min(depth_est), np.max(depth_est))
                     print ("conf. Min/Max: ",np.min(photometric_confidence), np.max(photometric_confidence))
+                    print("confidence percentiles: 25%:{:.1f}% 50%:{:.1f}% 75%:{:.1f}% 90%:{:.1f}%".format(np.percentile(photometric_confidence, 25)*100, 
+                                                                                                            np.percentile(photometric_confidence, 50)*100, 
+                                                                                                            np.percentile(photometric_confidence, 75)*100, 
+                                                                                                            np.percentile(photometric_confidence, 90)*100) )
                     
                     cv2.imshow("[depth estim.] view:{} res.:{}".format(batch_idx, str(depth_esti_norm.shape)), np.uint8(depth_esti_norm * 255)) 
                     cv2.imshow("[confidence] view:{}".format(batch_idx), np.uint8(photometric_confidence * 255)) 
+                    
+                    mask = (photometric_confidence>0.5)
+                    p2 = photometric_confidence.copy()
+                    p2[~mask] = 0
+                    
+                    cv2.imshow("[confidence >50%] view:{}".format(batch_idx), np.uint8(p2 * 255)) 
                     cv2.waitKey(0)
                     cv2.destroyAllWindows()
                     
@@ -318,7 +335,15 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     return mask, depth_reprojected, x2d_src, y2d_src
 
 
-def filter_depth(dataset_folder, scan, out_folder, plyfilename):
+def filter_depth(dataset_folder, 
+                 scan, 
+                 out_folder, 
+                 plyfilename,
+                 cam_subfolder,
+                 img_subfolder,
+                 img_res,
+                 ):
+    
     print("===== FILTER DEPTHs =====") # OLI
     print("Dataset:{}\n",format(dataset_folder))
     
@@ -327,7 +352,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
     vertex_colors = []
 
     # Read pair file
-    pair_file = os.path.join(dataset_folder, "Cameras_1200x1600", args.pairfile)
+    pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)
     pair_data = read_pair_file(pair_file)
     nviews = len(pair_data)
     print("Reading pair files:\n{}\n".format(pair_data))
@@ -342,9 +367,7 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         # load the camera parameters for REFERENCE VIEW
         ref_intrinsics, ref_extrinsics = read_camera_parameters(
             # os.path.join(dataset_folder, 'cams/{:0>8}_cam.txt'.format(ref_view))) # DTU testing
-            os.path.join(dataset_folder, 'Cameras_1200x1600/{:0>8}_cam.txt'.format(ref_view))) # unified Camera path
-        
-
+            os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(ref_view))) # unified Camera path
         
         # load the estimated depth of the reference view
         ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]  # (296, 400)
@@ -356,7 +379,12 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
         # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
         # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.png'.format(scan, ref_view))) #OLI - Merlin  
-        ref_img = read_img(os.path.join(dataset_folder, 'Rectified_1200x1600/{}/rect_C{:0>3}_L00.png'.format(scan, ref_view))) # 1200x1600
+        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, ref_view+1))) # 1200x1600
+        
+        view_idx = ref_view
+        if args.dataset_name in ["dtu", "bin"]: view_idx += 1        
+        ref_img = read_img(os.path.join(dataset_folder, img_subfolder.format(scan, view_idx))) # unified
+        
         ref_img_resized = ref_img[0::4, 0::4, :] # img reduced to resolution of predicted depth using the IO factor from CNN
         h_depth, w_depth = ref_depth_est.shape
         ref_img_cropped = ref_img_resized[0:h_depth, 0:w_depth, :] 
@@ -384,10 +412,9 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             
             # camera parameters of the SOURCE VIEW
             src_intrinsics, src_extrinsics = read_camera_parameters(
-                # os.path.join(dataset_folder, 'Cameras/{}/{:0>8}_cam.txt'.format(scan, src_view))) # orig
-                os.path.join(dataset_folder, 'Cameras_1200x1600/{:0>8}_cam.txt'.format(src_view)))
-            
-       
+                # os.path.join(dataset_folder, 'Cameras/{}/{:0>8}_cam.txt'.format(scan, src_view))) # orig 
+                # os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(src_view)))
+                os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(src_view)))
             
             # the estimated depth of the source view
             src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
@@ -468,17 +495,18 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
         #  DEBUG: plot 3D point-cloud
         if '3' in get_powers(args.debug_depth_gen): # add 8
             
-            import open3d as o3d
-            # Create frame and bounding boxes            
+            # Create frame and bounding boxes
+            # frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=100, origin=[0, 0, 0])
             frame, bbox, bbox2 = get_o3d_frame_bbox(scale = 1, delta = (.0, 0, .0))
             # Create  point cloud
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(xyz_world.transpose((1, 0)).astype(np.float64))
             pcd.colors = o3d.utility.Vector3dVector(color)
             # plot (type h for help in open3d)
-            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
-                
-                
+            if args.dataset_name in ["dtu"]:
+                o3d.visualization.draw_geometries([frame]+[pcd], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38) # DTU
+            else:
+                o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
 
     #  Once all reference images processed, concatenate all vertices and save as ply format
     vertexs_xyz = np.concatenate(vertexs, axis=0)
@@ -500,21 +528,63 @@ def filter_depth(dataset_folder, scan, out_folder, plyfilename):
             
     #  DEBUG: plot FINAL 3D point-cloud
     if '4' in get_powers(args.debug_depth_gen): # add 16
-        
-        import open3d as o3d
-        # Create frame and point cloud
-        frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=100, origin=[0, 0, 0])
+                
+        # Create frame and bounding boxes
+        frame, bbox, bbox2 = get_o3d_frame_bbox(scale = 1, delta = (.0, 0, .0))
+        # Create  point cloud
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertexs_xyz.astype(np.float64))
         pcd.colors = o3d.utility.Vector3dVector(vertexs_xyz_colors/255)
-        # plot
-        o3d.visualization.draw_geometries([frame]+[pcd], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6)
+        # plot (type h for help in open3d)
+        if args.dataset_name in ["dtu"]:
+            o3d.visualization.draw_geometries([frame]+[pcd], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38) # DTU
+            pcd2 = pcd.voxel_down_sample(voxel_size=5)
+            # pcd2.remove_statistical_outlier(nb_neighbors=100, std_ratio = 2.0)
+            o3d.visualization.draw_geometries([frame]+[pcd2], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38) # DTU
+        else:
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
+            pcd2 = pcd
+            pcd2.remove_statistical_outlier(nb_neighbors=20, std_ratio = 2.0)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd2], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
+            pcd2.remove_radius_outlier(nb_points=20, radius=5)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd2], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
+            pcd2 = pcd2.voxel_down_sample(voxel_size=5)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd2], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
+        
 
 if __name__ == '__main__':
+ 
+    # step0: get images, cameras SUBFOLDERS based on dataset name
+    dict_cam_subfolder = {  "dtu": "Cameras",
+                            "bds1": "Cameras_1200x1600",
+                            "bds2": "Cameras_512x640",
+                            # "bds4": "Cameras_1024x1280",
+                            "bds4": "Cameras_512x640",
+                        }
+    
+    dict_img_subfolder = {  "dtu": "Rectified_raw/{}/rect_{:0>3}_3_r5000.png",
+                            "bds1": "Rectified_1200x1600/{}/rect_C{:0>3}_L00.png",
+                            "bds2": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
+                            # "bds4": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
+                            "bds4": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
+                        }
+    
 
+    dict_img_res = {"dtu": (1200, 1600),
+                    "bds1": (1200, 1600),
+                    "bds2": (512, 640),
+                    # "bds4": (1024, 1280),
+                    "bds4": (512, 640),
+                    }
+        
+    
+     
     # step1. save all the depth maps and the masks in outputs directory
     #  nb: depth inference the ref view and first nviews-1 src views from pair_file.txt
-    save_depth()
+    save_depth(cam_subfolder = dict_cam_subfolder[args.dataset_name],
+               img_subfolder = dict_img_subfolder[args.dataset_name],
+               img_res = dict_img_res[args.dataset_name],
+               )
 
     with open(args.testlist) as f:
         scans = f.readlines()
@@ -532,4 +602,11 @@ if __name__ == '__main__':
         # NviewFilter  (Min:1, Max: as per pair.txt file) only use limited number of SOURCE views from pair.txt 
         
         plyfilename = os.path.join(args.outdir, acquisition_folder, 'mvsnet{:0>3}_l3.ply'.format(scan_id))
-        filter_depth(dataset_folder, scan, out_folder, plyfilename ) 
+        filter_depth(dataset_folder, 
+                     scan, 
+                     out_folder, 
+                     plyfilename,
+                     dict_cam_subfolder[args.dataset_name],
+                     dict_img_subfolder[args.dataset_name],
+                     dict_img_res[args.dataset_name]
+                     ) 

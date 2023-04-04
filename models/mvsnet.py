@@ -110,7 +110,7 @@ class MVSNet(nn.Module):
 
         # DEBUG: plot input image
         if "0" in get_powers(self.debug):
-            import cv2, re
+            import cv2
             # plot images features
             for view in range(len(imgs)): # sweep through views (ref view + src views)
                 for RGBchannel in range(0,imgs[view].shape[1],1): # select filter every 4 

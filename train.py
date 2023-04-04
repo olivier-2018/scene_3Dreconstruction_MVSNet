@@ -59,7 +59,9 @@ parser.add_argument('--debug_MVSnet', type=int, default=0, help='powers of 2 for
                     '2: plot regularization (add 4) '
                     '3: plot depths proba (add 8) '
                     '4: plot expectation (add 16) '
-                    '5: plot photometric confidence (add 32) ')
+                    '5: plot photometric confidence (add 32) '
+                    '63: ALL')
+
 
 args = parser.parse_args()
 
