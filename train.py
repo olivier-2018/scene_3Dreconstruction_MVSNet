@@ -245,12 +245,12 @@ def train_sample(sample, detailed_summary=False):
 
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     depth_est = outputs["depth"]
+    loss = model_loss(depth_est, depth_gt, mask)
+    
     photo_conf = outputs['photometric_confidence']
-    mask_conf_2mm = (photo_conf > 0.5)
+    mask_conf_50pct = (photo_conf > 0.5)
     errormap = (depth_est - depth_gt).abs() * mask
     mask_errormap_2mm = (errormap < 2.0)
-    
-    loss = model_loss(depth_est, depth_gt, mask)
 
     scalar_outputs = {"loss": loss}
     image_outputs = {"errormap": errormap,
@@ -268,8 +268,8 @@ def train_sample(sample, detailed_summary=False):
         image_outputs["errormap_2mm_mask"] = masked_em
                 
         masked_conf = photo_conf.cpu().detach().numpy().copy()
-        masked_conf[~mask_conf_2mm.cpu().detach().numpy()] = 0.0
-        masked_conf[mask_conf_2mm.cpu().detach().numpy()] = 1.0
+        masked_conf[~mask_conf_50pct.cpu().detach().numpy()] = 0.0
+        masked_conf[mask_conf_50pct.cpu().detach().numpy()] = 1.0
         masked_conf[~(mask.cpu().detach().numpy()>0.5)] = 0.0
         image_outputs["photo_conf_50pct"] = masked_conf
         
@@ -296,14 +296,35 @@ def test_sample(sample, detailed_summary=True):
 
     outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
     depth_est = outputs["depth"]
-
     loss = model_loss(depth_est, depth_gt, mask)
+   
+    photo_conf = outputs['photometric_confidence']
+    mask_conf_50pct = (photo_conf > 0.5)
+    errormap = (depth_est - depth_gt).abs() * mask
+    mask_errormap_2mm = (errormap < 2.0)
 
-    scalar_outputs = {"loss": loss}
-    image_outputs = {"depth_est": depth_est * mask, "depth_gt": sample["depth"],
+    image_outputs = {"errormap": errormap,
+                     "photo_conf": photo_conf, 
+                     "depth_est": depth_est * mask, 
+                     "depth_gt": sample["depth"],
                      "ref_img": sample["imgs"][:, 0],
-                     "mask": sample["mask"]}
+                    }
     if detailed_summary:
+        
+        masked_em = errormap.cpu().detach().numpy().copy()
+        masked_em[~mask_errormap_2mm.cpu().detach().numpy()] = 0.0
+        masked_em[mask_errormap_2mm.cpu().detach().numpy()] = 1.0
+        masked_em[~(mask.cpu().detach().numpy()>0.5)] = 0.0
+        image_outputs["errormap_2mm_mask"] = masked_em
+                
+        masked_conf = photo_conf.cpu().detach().numpy().copy()
+        masked_conf[~mask_conf_50pct.cpu().detach().numpy()] = 0.0
+        masked_conf[mask_conf_50pct.cpu().detach().numpy()] = 1.0
+        masked_conf[~(mask.cpu().detach().numpy()>0.5)] = 0.0
+        image_outputs["photo_conf_50pct"] = masked_conf
+        
+        image_outputs["mask"] = sample["mask"]
+        
         image_outputs["errormap"] = (depth_est - depth_gt).abs() * mask
 
     scalar_outputs["abs_depth_error"] = AbsDepthError_metrics(depth_est, depth_gt, mask > 0.5)
