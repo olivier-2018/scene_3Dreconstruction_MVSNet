@@ -32,7 +32,10 @@ class MVSDataset(Dataset):
 
         # pair_file = "{}/pair.txt".format(scan)
         # pair_file = "Cameras/"+self.pairfile
-        pair_file = os.path.join(self.cam_subfolder, self.pairfile)        
+        if self.dataset_name == "bin":
+            pair_file = os.path.join("..", self.pairfile) 
+        else:      
+            pair_file = os.path.join(self.cam_subfolder, self.pairfile)  
         
         for scan in scans: # scans is a list of subfolders: ['scan1', 'scan4', ...]
             # read the pair file
@@ -70,12 +73,23 @@ class MVSDataset(Dataset):
         return intrinsics, extrinsics, depth_min, depth_interval
 
     def read_img(self, filename):
+        # Read
         img = Image.open(filename)
+        
+        # resize ############################ TESTING
+        # scale = 0.5
+        # width, height = img.size
+        # resized_dimensions = (int(width * scale), int(height * scale))
+        # img = img.resize(resized_dimensions)
+                     
         # scale 0~255 to 0~1
         np_img = np.array(img, dtype=np.float32) / 255.
         
-        # check
+        # checks shape
         assert np_img.shape[:2] == self.img_res
+        # check image has 3 channels (RGB), stack if only 1 channel
+        if len(np_img.shape) == 2:
+            np_img = np.dstack((np_img, np_img, np_img))
                     
         # Check resolution is multiple of 32, crop if needed
         # EX: (512,640) --> (512,640)
@@ -102,20 +116,19 @@ class MVSDataset(Dataset):
         depth_values = None
         proj_matrices = []
 
-        for i, vid in enumerate(view_ids):
+        for i, vid in enumerate(view_ids):            
             
             # Filenames
-            # img_filename = os.path.join(self.datapath, '{}/images/{:0>8}.jpg'.format(scan, vid)) 
-            # proj_mat_filename = os.path.join(self.datapath, '{}/cams/{:0>8}_cam.txt'.format(scan, vid))
-            
-            img_vid = vid
-            if self.dataset_name in ["dtu", "bin"]: img_vid += 1                
+            if self.dataset_name in ["dtu"]: 
+                img_vid = vid + 1     
+            else:
+                img_vid = vid       
             img_filename = os.path.join(self.datapath, self.img_subfolder.format(scan, img_vid)) 
             proj_mat_filename = os.path.join(self.datapath, self.cam_subfolder,'{:0>8}_cam.txt'.format(vid))
             
             # Store images
-            # print ("[dataloader] img fname:", img_filename)
-            imgs.append(self.read_img(img_filename))
+            print ("[dataloader] img fname:", img_filename)
+            imgs.append(self.read_img(img_filename))            
                 
             # Read camera parameters, rescale intrinsics by factor 4
                 # low res img (512x640) --> depth (128x160) 
@@ -124,6 +137,9 @@ class MVSDataset(Dataset):
                 # ALL have I/O CNN factor of 4 
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
 
+            # Resize ############# TEST
+            # intrinsics[:2, :] *= 0.5
+            
 
             # multiply intrinsics and extrinsics to get projection matrix
             proj_mat = extrinsics.copy()

@@ -203,7 +203,7 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
                 for iview in range(args.NviewGen):
                     BRG_img = sample["imgs"].permute(3,4,2,0,1)[::2,::2,:,0,iview].numpy()
                     RGB_img = cv2.cvtColor(BRG_img, cv2.COLOR_BGR2RGB)
-                    cv2.imshow('view:{} batch:{} Res.:{}'.format(iview, batch_idx, str(RGB_img.shape)), RGB_img) # OLI     
+                    cv2.imshow('[EVAL] view:{} batch:{} Res.:{}'.format(iview, batch_idx, str(RGB_img.shape)), RGB_img) # OLI     
                 cv2.waitKey(0)
                 cv2.destroyAllWindows()
             # END DEBUG 
@@ -353,7 +353,12 @@ def filter_depth(dataset_folder,
     vertex_colors = []
 
     # Read pair file
-    pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)
+    # pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)
+    if args.dataset_name == "bin":
+        pair_file = os.path.join(dataset_folder, "..", args.pairfile) 
+    else:      
+        pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)  
+        
     pair_data = read_pair_file(pair_file)
     nviews = len(pair_data)
     print("Reading pair files:\n{}\n".format(pair_data))
@@ -383,7 +388,7 @@ def filter_depth(dataset_folder,
         # ref_img = read_img(os.path.join(dataset_folder, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, ref_view+1))) # 1200x1600
         
         view_idx = ref_view
-        if args.dataset_name in ["dtu", "bin"]: view_idx += 1        
+        if args.dataset_name in ["dtu"]: view_idx += 1        
         ref_img = read_img(os.path.join(dataset_folder, img_subfolder.format(scan, view_idx))) # unified
         
         ref_img_resized = ref_img[0::4, 0::4, :] # img reduced to resolution of predicted depth using the IO factor from CNN
@@ -538,19 +543,37 @@ def filter_depth(dataset_folder,
         pcd.colors = o3d.utility.Vector3dVector(vertexs_xyz_colors/255)
         # plot (type h for help in open3d)
         if args.dataset_name in ["dtu"]:
-            o3d.visualization.draw_geometries([frame]+[pcd], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38) # DTU
-            pcd2 = pcd.voxel_down_sample(voxel_size=5)
-            # pcd2.remove_statistical_outlier(nb_neighbors=100, std_ratio = 2.0)
-            o3d.visualization.draw_geometries([frame]+[pcd2], front=[0.8,0.13,-0.6],lookat=[40.1,33.4,595],up=[-0.42,-0.57,-0.70],zoom=0.38) # DTU
+            front = [0.8,0.13,-0.6]
+            lookat = [40.1,33.4,595]
+            up = [-0.42,-0.57,-0.70]
+            zoom = 0.38
         else:
-            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
-            pcd2 = pcd
-            pcd2.remove_statistical_outlier(nb_neighbors=20, std_ratio = 2.0)
-            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd2], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
-            pcd2.remove_radius_outlier(nb_points=20, radius=5)
-            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd2], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
-            pcd2 = pcd2.voxel_down_sample(voxel_size=5)
-            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd2], front=[-0.54,-0.52,0.66 ],lookat=[6.6,40.9,47.1],up=[0.52,0.42,0.75],zoom=0.6) # Blender
+            front = [-0.54,-0.52,0.66 ]
+            lookat = [6.6,40.9,47.1]
+            up = [0.52,0.42,0.75]
+            zoom = 0.6
+        # Remove points outside bbob2
+        pcd = pcd.crop(bbox2) 
+        # Display raw
+        print ("3D point cloud - raw")
+        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom) 
+        # Statistical remove
+        print ("3D point cloud after Statistical remover")
+        pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio = 2.0)
+        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
+        # Remove outliers
+        print ("3D point cloud after radius outllers remover")
+        pcd.remove_radius_outlier(nb_points=20, radius=5)
+        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
+        # Down-sample
+        print ("3D point cloud - Down-sampled")
+        # field_of_view = 60.0
+        front = [ 0, -0.0, 1 ]
+        lookat = [ 0, 32, 45 ]
+        up = [0, 1, 0]
+        zoom = 0.6        
+        pcd = pcd.voxel_down_sample(voxel_size=5)
+        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
         
 
 if __name__ == '__main__':
@@ -559,26 +582,33 @@ if __name__ == '__main__':
     dict_cam_subfolder = {  "dtu": "Cameras",
                             "bds1": "Cameras_1200x1600",
                             "bds2": "Cameras_512x640",
-                            # "bds4": "Cameras_1024x1280",
-                            "bds4": "Cameras_512x640",
+                            "bds4": "Cameras_1024x1280",
+                            # "bds4": "Cameras_512x640",
                             "bds6": "Cameras_1024x1280",
+                            "bin": "Cameras_1024x1280",
+                            # "bin": "Cameras_1024x1280_inv",
+                            # "bin": "Cameras_2048x3072",
                         }
     
     dict_img_subfolder = {  "dtu": "Rectified_raw/{}/rect_{:0>3}_3_r5000.png",
                             "bds1": "Rectified_1200x1600/{}/rect_C{:0>3}_L00.png",
                             "bds2": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
-                            # "bds4": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
-                            "bds4": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
+                            "bds4": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
+                            # "bds4": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
                             "bds6": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
+                            "bin": "Rectified_1024x1280/{}/00000{:0>3}.png",
+                            # "bin": "Rectified_2048x3072/{}/00000{:0>3}.png",
                         }
     
 
     dict_img_res = {"dtu": (1200, 1600),
                     "bds1": (1200, 1600),
                     "bds2": (512, 640),
-                    # "bds4": (1024, 1280),
-                    "bds4": (512, 640),
+                    "bds4": (1024, 1280),
+                    # "bds4": (512, 640),
                     "bds6": (1024, 1280),
+                    "bin": (1024, 1280),
+                    # "bin": (2048, 3072),
                     }
         
     
