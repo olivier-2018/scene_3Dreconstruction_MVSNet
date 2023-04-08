@@ -102,7 +102,7 @@ class MVSDataset(Dataset):
             # 640x512 with intrinsics (361.5 0.0 82.9)
             # step1: 1600x1200 truncated to 1280x1024 --> intrinsics (2892.3 0 663.2) 
             # step2: rows 1&2 divided by 8 --> intrinsics (361.5 0 82.9) 
-            # but why 8 ?  1280 to 640 is a factor 2 only.. Depth array and masks are at 160x128 (factor 4 from 640x512)
+            # but why 8 ?  1280 to 640 is a factor 2 only.. BECAUSE Depth array and masks are at 160x128 (factor 4 from 640x512)
 
             img_filename = os.path.join(self.datapath, 'Rectified_512x640/{}/rect_C{:0>3}_L{:0>2}.png'.format(scan, vid , light_idx))
             mask_filename = os.path.join(self.datapath, 'Depths_512x640/{}/depth_mask_{:0>3}.png'.format(scan, vid))

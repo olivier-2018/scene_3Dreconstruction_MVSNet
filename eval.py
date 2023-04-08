@@ -153,7 +153,10 @@ def get_o3d_frame_bbox(scale = 1, delta = (-127.0, -130.3, -5.0)):
     
     return frame, bounding_box, bounding_box2 
 
-#======SAVE_DEPTH============================================================================================================
+
+
+###### SAVE_DEPTH #############################################################################################################
+################################################################################################################################
 
 # run MVS model to save depth maps and confidence maps
 def save_depth(cam_subfolder, img_subfolder,img_res):
@@ -234,18 +237,22 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
                 # save confidence maps
                 save_pfm(confidence_filename, photometric_confidence)
 
+                print("depth Min/Max: {:.1f}/{:.1f} - conf. Min/Max: {:.1f}%/{:.1f}%".format(np.min(depth_est), 
+                                                                                        np.max(depth_est),
+                                                                                        np.min(photometric_confidence)*100, 
+                                                                                        np.max(photometric_confidence)*100) )
+                      
+                print("confidence percentiles: 25%:{:.1f}% 50%:{:.1f}% 75%:{:.1f}% 90%:{:.1f}%".format(np.percentile(photometric_confidence, 25)*100, 
+                                                                                                        np.percentile(photometric_confidence, 50)*100, 
+                                                                                                        np.percentile(photometric_confidence, 75)*100, 
+                                                                                                        np.percentile(photometric_confidence, 90)*100) )
+                
+                print("Saved to: {}".format(depth_filename))
+                
                 #  DEBUG
                 if '1' in get_powers(args.debug_depth_gen): # add 2
                     depth_esti_norm = (depth_est - np.min(depth_est)) / (np.max(depth_est) - np.min(depth_est))
-                    
-                    print ("depth res.: ", depth_est.shape)
-                    print ("depth Min/Max: ",np.min(depth_est), np.max(depth_est))
-                    print ("conf. Min/Max: ",np.min(photometric_confidence), np.max(photometric_confidence))
-                    print("confidence percentiles: 25%:{:.1f}% 50%:{:.1f}% 75%:{:.1f}% 90%:{:.1f}%".format(np.percentile(photometric_confidence, 25)*100, 
-                                                                                                            np.percentile(photometric_confidence, 50)*100, 
-                                                                                                            np.percentile(photometric_confidence, 75)*100, 
-                                                                                                            np.percentile(photometric_confidence, 90)*100) )
-                    
+                                        
                     cv2.imshow("[depth estim.] view:{} res.:{}".format(batch_idx, str(depth_esti_norm.shape)), np.uint8(depth_esti_norm * 255)) 
                     cv2.imshow("[confidence] view:{}".format(batch_idx), np.uint8(photometric_confidence * 255)) 
                     
@@ -259,7 +266,9 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
                     
 
 
-#########FILTER_DEPTH#####################################################################################################3
+#########FILTER_DEPTH##########################################################################################################
+################################################################################################################################
+
 
 # project the reference point cloud into the source view, then project back
 def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, intrinsics_src, extrinsics_src):
@@ -310,6 +319,8 @@ def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, i
     return depth_reprojected, x_reprojected, y_reprojected, x_src, y_src
 
 
+###############################################################################################################################################
+
 def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, intrinsics_src, extrinsics_src):
 
     width, height = depth_ref.shape[1], depth_ref.shape[0]
@@ -336,6 +347,8 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     return mask, depth_reprojected, x2d_src, y2d_src
 
 
+###############################################################################################################################################
+
 def filter_depth(dataset_folder, 
                  scan, 
                  out_folder, 
@@ -345,7 +358,7 @@ def filter_depth(dataset_folder,
                  img_res,
                  ):
     
-    print("===== FILTER DEPTHs =====") # OLI
+    print("============ DEPTH MAPS FILTER / FUSION using {} views".format(args.NviewFilter))
     print("Dataset:{}\n",format(dataset_folder))
     
     # for the final point cloud
@@ -356,7 +369,9 @@ def filter_depth(dataset_folder,
     # pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)
     if args.dataset_name == "bin":
         pair_file = os.path.join(dataset_folder, "..", args.pairfile) 
-    else:      
+    elif args.dataset_name == "dtu" and cam_subfolder == "Cameras/train":
+        pair_file = os.path.join(dataset_folder, cam_subfolder, "..", args.pairfile)  
+    else:
         pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)  
         
     pair_data = read_pair_file(pair_file)
@@ -368,28 +383,28 @@ def filter_depth(dataset_folder,
 
     # for each reference view and the corresponding source views
     for ref_view, src_views in pair_data:
+        
         print ("=> Ref view: {}, SRC views: {}".format(ref_view, src_views)) # OLI
         
         # load the camera parameters for REFERENCE VIEW
-        ref_intrinsics, ref_extrinsics = read_camera_parameters(
-            # os.path.join(dataset_folder, 'cams/{:0>8}_cam.txt'.format(ref_view))) # DTU testing
-            os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(ref_view))) # unified Camera path
+        cam_filename =  os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(ref_view)) # unified Camera path
+        ref_intrinsics, ref_extrinsics = read_camera_parameters(cam_filename) 
         
         # load the estimated depth of the reference view
-        ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]  # (296, 400)
+        depth_filename = os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view))
+        ref_depth_est = read_pfm(depth_filename)[0]  # (296, 400)
         
         # load the photometric mask of the reference view
-        confidence = read_pfm(os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view)))[0] # (296, 400)
+        conf_filename = os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view))
+        confidence = read_pfm(conf_filename)[0] # (296, 400)
         
         # load the reference image        
-        # ref_img = read_img(os.path.join(dataset_folder, 'images/{:0>8}.jpg'.format(ref_view))) # Orig
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.jpg'.format(scan, ref_view))) #OLI -  DTU  
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified/{}/{:0>8}.png'.format(scan, ref_view))) #OLI - Merlin  
-        # ref_img = read_img(os.path.join(dataset_folder, 'Rectified_raw/{}/rect_{:0>3}_3_r5000.png'.format(scan, ref_view+1))) # 1200x1600
-        
-        view_idx = ref_view
-        if args.dataset_name in ["dtu"]: view_idx += 1        
-        ref_img = read_img(os.path.join(dataset_folder, img_subfolder.format(scan, view_idx))) # unified
+        if args.dataset_name in ["dtu"]: 
+            img_filename = os.path.join(dataset_folder, img_subfolder.format(scan, ref_view+1)) 
+        else:            
+            img_filename = os.path.join(dataset_folder, img_subfolder.format(scan, ref_view))
+            
+        ref_img = read_img(img_filename) 
         
         ref_img_resized = ref_img[0::4, 0::4, :] # img reduced to resolution of predicted depth using the IO factor from CNN
         h_depth, w_depth = ref_depth_est.shape
@@ -413,17 +428,17 @@ def filter_depth(dataset_folder,
 
         # compute the geometric MASK  
         geo_mask_sum = 0
-        for src_view in src_views[:args.NviewFilter]: # only use the first NviewFilter views of pairfile.txt
+        
         # for src_view in src_views: # filter depth using all src views from pair_file.txt (for each ref view)
+        for src_view in src_views[:args.NviewFilter]: # only use the first NviewFilter views of pairfile.txt
             
             # camera parameters of the SOURCE VIEW
-            src_intrinsics, src_extrinsics = read_camera_parameters(
-                # os.path.join(dataset_folder, 'Cameras/{}/{:0>8}_cam.txt'.format(scan, src_view))) # orig 
-                # os.path.join(dataset_folder, 'Cameras/{:0>8}_cam.txt'.format(src_view)))
-                os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(src_view)))
+            cam_filename = os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(src_view))
+            src_intrinsics, src_extrinsics = read_camera_parameters(cam_filename)
             
             # the estimated depth of the source view
-            src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
+            depth_filename = os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view))
+            src_depth_est = read_pfm(depth_filename)[0]
             
             print("SRC view...", end="") # OLI
             geo_mask, depth_reprojected, x2d_src, y2d_src = check_geometric_consistency(ref_depth_est, ref_intrinsics, ref_extrinsics,
@@ -490,19 +505,10 @@ def filter_depth(dataset_folder,
         vertexs.append(xyz_world.transpose((1, 0)))
         vertex_colors.append((color * 255).astype(np.uint8)) # list of arrays containing vertices (x,y,z)
 
-        # # set used_mask[ref_view]
-        # used_mask[ref_view][...] = True
-        # for idx, src_view in enumerate(src_views):
-        #     src_mask = np.logical_and(final_mask, all_srcview_geomask[idx])
-        #     src_y = all_srcview_y[idx].astype(np.int)
-        #     src_x = all_srcview_x[idx].astype(np.int)
-        #     used_mask[src_view][src_y[src_mask], src_x[src_mask]] = True
-
         #  DEBUG: plot 3D point-cloud
         if '3' in get_powers(args.debug_depth_gen): # add 8
             
             # Create frame and bounding boxes
-            # frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=100, origin=[0, 0, 0])
             frame, bbox, bbox2 = get_o3d_frame_bbox(scale = 1, delta = (.0, 0, .0))
             # Create  point cloud
             pcd = o3d.geometry.PointCloud()
@@ -534,47 +540,62 @@ def filter_depth(dataset_folder,
             
     #  DEBUG: plot FINAL 3D point-cloud
     if '4' in get_powers(args.debug_depth_gen): # add 16
-                
-        # Create frame and bounding boxes
-        frame, bbox, bbox2 = get_o3d_frame_bbox(scale = 1, delta = (.0, 0, .0))
+
         # Create  point cloud
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(vertexs_xyz.astype(np.float64))
         pcd.colors = o3d.utility.Vector3dVector(vertexs_xyz_colors/255)
+        
+        # Create frame and bounding boxes
+        frame, bbox, bbox2 = get_o3d_frame_bbox(scale = 1, delta = (.0, 0, .0))
+            
         # plot (type h for help in open3d)
-        if args.dataset_name in ["dtu"]:
+        if args.dataset in ["dtu"]:
+            # Set view
             front = [0.8,0.13,-0.6]
             lookat = [40.1,33.4,595]
             up = [-0.42,-0.57,-0.70]
             zoom = 0.38
+            # Display raw
+            print ("3D point cloud - raw")
+            o3d.visualization.draw_geometries([frame]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom) 
         else:
+            # Set view
             front = [-0.54,-0.52,0.66 ]
             lookat = [6.6,40.9,47.1]
             up = [0.52,0.42,0.75]
-            zoom = 0.6
-        # Remove points outside bbob2
-        pcd = pcd.crop(bbox2) 
-        # Display raw
-        print ("3D point cloud - raw")
-        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom) 
-        # Statistical remove
-        print ("3D point cloud after Statistical remover")
-        pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio = 2.0)
-        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
-        # Remove outliers
-        print ("3D point cloud after radius outllers remover")
-        pcd.remove_radius_outlier(nb_points=20, radius=5)
-        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
-        # Down-sample
-        print ("3D point cloud - Down-sampled")
-        # field_of_view = 60.0
-        front = [ 0, -0.0, 1 ]
-        lookat = [ 0, 32, 45 ]
-        up = [0, 1, 0]
-        zoom = 0.6        
-        pcd = pcd.voxel_down_sample(voxel_size=5)
-        o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
+            zoom = 0.6  
+                     
+            # Remove points outside bbob2
+            pcd = pcd.crop(bbox2) 
+            
+            # Display raw
+            print ("3D point cloud - raw")
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom) 
+            
+            # Statistical remove
+            print ("3D point cloud after Statistical remover")
+            pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio = 2.0)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
+            
+            # Remove outliers
+            print ("3D point cloud after radius outllers remover")
+            pcd.remove_radius_outlier(nb_points=20, radius=5)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
+            
+            # Down-sample
+            print ("3D point cloud - Down-sampled")
+            # field_of_view = 60.0
+            front = [ 0, -0.0, 1 ]
+            lookat = [ 0, 32, 45 ]
+            up = [0, 1, 0]
+            zoom = 0.6        
+            pcd = pcd.voxel_down_sample(voxel_size=5)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd], front=front, lookat=lookat, up=up, zoom=zoom)
+
         
+################################################################################################################################
+################################################################################################################################
 
 if __name__ == '__main__':
  

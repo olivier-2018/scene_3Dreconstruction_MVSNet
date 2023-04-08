@@ -70,7 +70,7 @@
             "program": "eval.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "cwd": "/home/alcor/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
             "args": [
                 "--dataset", "dataloader_eval",
                 "--dataset_name", "dtu",
@@ -88,8 +88,8 @@
                 "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
-                "--debug_MVSnet", "32",
-                "--debug_depth_gen", "20"
+                "--debug_MVSnet", "0",
+                "--debug_depth_gen", "12"
             ]
         },
         {
