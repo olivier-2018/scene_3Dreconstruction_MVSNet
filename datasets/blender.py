@@ -114,7 +114,7 @@ class MVSDataset(Dataset):
             
             # read cam parameters and resize intrinsics
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)            
-            intrinsics[:2,:] = intrinsics[:2,:] / 4.0  # factor 4 from DTU, see note above
+            intrinsics[:2,:] = intrinsics[:2,:] / 4.0  # factor 4 from FeatureNet, see note above
             
             # multiply intrinsics and extrinsics to get projection matrix
             proj_mat = extrinsics.copy()
