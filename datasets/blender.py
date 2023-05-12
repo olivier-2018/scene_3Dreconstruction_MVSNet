@@ -45,6 +45,7 @@ class MVSDataset(Dataset):
                     else:
                         for light_idx in range(7):    
                             metas.append((scan, light_idx, ref_view, src_views))
+                            
         print("mode: ", self.mode, ", # metas: ", len(metas))
         return metas
 
@@ -123,7 +124,7 @@ class MVSDataset(Dataset):
 
             if i == 0:  # reference view
                 # generate depth values
-                depth_values = np.arange(depth_min, depth_min + depth_interval * self.ndepths, depth_interval, dtype=np.float32)
+                depth_values = np.arange(depth_min, depth_min + depth_interval * (self.ndepths-0.5), depth_interval, dtype=np.float32)
                 # read mask and resize to 128x160
                 mask = self.read_img(mask_filename)
                 mask = mask[::4, ::4]
