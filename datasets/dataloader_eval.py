@@ -32,10 +32,11 @@ class MVSDataset(Dataset):
 
         # pair_file = "{}/pair.txt".format(scan)
         # pair_file = "Cameras/"+self.pairfile
-        if self.dataset_name == "bin":
-            pair_file = os.path.join("..", self.pairfile) 
-        else:      
-            pair_file = os.path.join(self.cam_subfolder, self.pairfile)  
+        # if self.dataset_name == "bin":
+        #     pair_file = os.path.join("..", self.pairfile) 
+        # else:      
+        #     pair_file = os.path.join(self.cam_subfolder, self.pairfile)  
+        pair_file = os.path.join(self.cam_subfolder, self.pairfile)  
         
         for scan in scans: # scans is a list of subfolders: ['scan1', 'scan4', ...]
             # read the pair file
@@ -115,6 +116,8 @@ class MVSDataset(Dataset):
         depth = None
         depth_values = None
         proj_matrices = []
+        intrinsics_list = []
+        extrinsics_list = []
 
         for i, vid in enumerate(view_ids):            
             
@@ -127,7 +130,7 @@ class MVSDataset(Dataset):
             proj_mat_filename = os.path.join(self.datapath, self.cam_subfolder,'{:0>8}_cam.txt'.format(vid))
             
             # Store images
-            print ("[dataloader] img fname:", img_filename)
+            # print ("[dataloader] img fname:", img_filename)
             imgs.append(self.read_img(img_filename))            
                 
             # Read camera parameters, rescale intrinsics by factor 4
@@ -136,6 +139,8 @@ class MVSDataset(Dataset):
                 # high res img (1184x1600) --> depth (296x400)
                 # ALL have I/O CNN factor of 4 
             intrinsics, extrinsics, depth_min, depth_interval = self.read_cam_file(proj_mat_filename)
+            intrinsics_list.append(intrinsics)
+            extrinsics_list.append(extrinsics)
 
             # Resize ############# TEST
             # intrinsics[:2, :] *= 0.5
@@ -154,6 +159,8 @@ class MVSDataset(Dataset):
 
         return {"imgs": imgs,
                 "proj_matrices": proj_matrices,
+                "intrinsics": intrinsics_list,
+                "extrinsics": extrinsics_list,
                 "depth_values": depth_values,
                 "filename": scan + '/{}/' + '{:0>8}'.format(view_ids[0]) + "{}"}
 

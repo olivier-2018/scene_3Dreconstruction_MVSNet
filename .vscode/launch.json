@@ -36,7 +36,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_DTU",
+            "name": "MVSNet: eval_DTU_old_dataset",
             "type": "python",
             "request": "launch",
             "program": "evalDTU.py",
@@ -64,7 +64,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_DTU_new",
+            "name": "MVSNet: eval_DTU",
             "type": "python",
             "request": "launch",
             "program": "eval.py",
@@ -124,7 +124,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_BDS1",
+            "name": "MVSNet: eval_BDS1_old_dataset",
             "type": "python",
             "request": "launch",
             "program": "evalBDS1.py",
@@ -152,7 +152,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_BDS1_new",
+            "name": "MVSNet: eval_BDS1",
             "type": "python",
             "request": "launch",
             "program": "eval.py",
@@ -181,7 +181,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_BDS2_new",
+            "name": "MVSNet: eval_BDS2",
             "type": "python",
             "request": "launch",
             "program": "eval.py",
@@ -241,7 +241,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_BDS4_new",
+            "name": "MVSNet: eval_BDS4",
             "type": "python",
             "request": "launch",
             "program": "eval.py",
@@ -301,7 +301,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_BDS6_new",
+            "name": "MVSNet: eval_BDS6",
             "type": "python",
             "request": "launch",
             "program": "eval.py",
@@ -335,7 +335,7 @@
             ]
         },
         {
-            "name": "MVSNet: eval_BDS6_binpicking",
+            "name": "MVSNet: eval_binpicking",
             "type": "python",
             "request": "launch",
             "program": "eval.py",
@@ -345,28 +345,29 @@
             "args": [
                 "--dataset", "dataloader_eval",
                 "--dataset_name", "bin",
-                "--testpath", "data/Bin_picking/2022-12-05_setup_Merlin_mario_blender_set",             // resized to 1024x1280
+                // "--testpath", "data/Bin_picking/2022-12-05_setup_Merlin_mario_blender_set",             // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/2023-02-15_setup_overhead03_mario_w_GT",             // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/2022-07-15_setup_Merlin_Mario_Set_Full_to_Empty", // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/acquisition-2023-02-15-13-41-55",                 // with original img size&intrinsics
+                "--testpath", "data/Bin_2048x3072/2023-02-15_setup_overhead03_mario_w_GT",
                 "--outdir", "./outputs/debug/evalBin",
-                // "--testlist", "lists/Bin/eval_scan1.txt",
-                "--testlist", "lists/Bin/eval_scan7.txt",
-                // "--pairfile", "pair_overhead_4x4.txt",
-                "--pairfile", "pair_overhead_4x3.txt",
-                // "--pairfile", "pair_overhead_4x2.txt",
+                "--testlist", "lists/Bin/eval_scene1.txt",
+                // "--testlist", "lists/Bin/eval_scan7.txt",
+                "--pairfile", "eval_pair_4x4.txt",
                 "--batch_size", "1",
                 "--numdepth", "192", 
-                "--interval_scale", "1.06",
-                "--loadckpt", "outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000018.ckpt",
-                "--NviewGen", "3",
-                "--NviewFilter", "3",
+                "--interval_scale", "1.33",
+                // "--loadckpt", "outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000018.ckpt",
+                "--loadckpt", "outputs/BDS7_512x640_N5_d192_215_2.5_itv1.33_intrin548-548/model_000021.ckpt",
+                "--NviewGen", "4",
+                "--NviewFilter", "4",
                 "--photomask", "0.",
-                "--geomask", "1",
+                "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
                 "--debug_MVSnet", "0",
-                "--debug_depth_gen", "31"
+                "--debug_depth_gen", "31",
+                "--debug_depth_filter", "7"
             ]
         },
         {
@@ -397,7 +398,41 @@
                 "--save_freq", "1",
                 "--summary_freq", "1",
                 "--seed", "0",
-                "--debug_MVSnet", "0"
+                "--debug_MVSnet", "0",
+            ]
+        },
+        {
+            "name": "MVSNet: eval_BDS7",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            // "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--dataset", "dataloader_eval",
+                "--dataset_name", "bds7",
+                "--testpath", "data/Blender/BDS7_mvs_train_512x640",
+                "--outdir", "./outputs/debug/evalBDS7",
+                // "--testlist", "lists/BDS7/eval_scene160.txt",
+                // "--testlist", "lists/BDS7/eval_scene170.txt",
+                "--testlist", "lists/BDS7/eval_scene180.txt",
+                // "--pairfile", "eval_pair_5x10_0-1-2-3-4.txt",
+                "--pairfile", "eval_pair_4x4_19-34-29-30.txt",
+                // "--pairfile", "eval_pair_4x4_1-2-11-12.txt",
+                "--batch_size", "1",
+                "--numdepth", "192", 
+                "--interval_scale", "1.33",
+                "--loadckpt", "outputs/BDS7_512x640_N5_d192_215_2.5_itv1.33_intrin548-548/model_000021.ckpt",
+                "--NviewGen", "4",
+                "--NviewFilter", "4",
+                "--photomask", "0.1",
+                "--geomask", "2",
+                "--condmask_pixel", "2",
+                "--condmask_depth", "0.05",
+                "--debug_MVSnet", "0",
+                "--debug_depth_gen", "14",
+                "--debug_depth_filter", "6"
             ]
         },
     ]
