@@ -1,6 +1,8 @@
 import numpy as np
 import re
 import sys
+import math
+from  PIL import Image
 
 
 def read_pfm(filename):
@@ -69,3 +71,83 @@ def save_pfm(filename, image, scale=1):
 
     image.tofile(file)
     file.close()
+
+
+def read_rescale_crop_img(img_fname, intrinsics, img_res=(512,640), DEBUG=False):
+    
+    base_image_size = 32
+    
+    # Read image
+    img = Image.open(img_fname)
+    w_src, h_src = img.size  # Warning: width first with pillow
+    if DEBUG: print(f"[read_rescale_crop_img] img read dims: ({h_src},{w_src})")        
+    
+    # evaluate scale factor 
+    h_target, w_target = img_res
+    if DEBUG: print(f"[read_rescale_crop_img] img target dims: ({h_target},{w_target})")        
+    h_scale = float(h_target) / h_src
+    w_scale = float(w_target) / w_src
+    if h_scale > 1 or w_scale > 1:
+        print("[read_rescale_crop_img] max_h, max_w should < W and H!")
+        exit()
+    resize_scale = h_scale
+    if w_scale > h_scale:
+        resize_scale = w_scale
+    if DEBUG: print(f"[read_rescale_crop_img] resize_scale: {resize_scale}")        
+    
+    # rescale image
+    img_rescaled = img.resize((int(w_src*resize_scale), int(h_src*resize_scale))) # Warning: width first with pillow
+    w_rescaled, h_rescaled = img_rescaled.size        
+    if DEBUG: print(f"[read_rescale_crop_img] img rescaled dims: ({h_rescaled}, {w_rescaled})")
+    
+    # rescale intrinsics
+    if DEBUG: print("[read_rescale_crop_img] intrinsics:\n", intrinsics)
+    intrinsics[:2,:] *= resize_scale
+    if DEBUG: print("[read_rescale_crop_img] rescaled intrinsics:\n", intrinsics)
+    
+    # determine if cropping needed (dims must be compatible with base_image_size)
+    final_h = h_rescaled
+    final_w = w_rescaled
+    
+    if final_h > h_target:
+        final_h = h_target
+    else:
+        final_h = int(math.floor(h_target / base_image_size) * base_image_size)
+        
+    if final_w > w_target:
+        final_w = w_target
+    else:
+        final_w = int(math.floor(w_target / base_image_size) * base_image_size)
+
+    # evaluate cropping parameters 
+    start_h = int(math.floor((h_rescaled - final_h) / 2))
+    start_w = int(math.floor((w_rescaled - final_w) / 2))
+    finish_h = start_h + final_h
+    finish_w = start_w + final_w
+    
+    # crop img and intrinsics
+    # img_cropped = img_rescaled[start_h:finish_h, start_w:finish_w] # for numpy
+    croping_dims = (start_w, start_h, finish_w, finish_h)
+    img_cropped = img_rescaled.crop(croping_dims)  # for pillow
+    if DEBUG: 
+        print(f"[read_rescale_crop_img] croping dims: (left, top, right, bottom)={croping_dims}")
+        print(f"[read_rescale_crop_img] cropped img dims: ({img_cropped.size[1]}, {img_cropped.size[0]})")
+    
+    # crop intrinsics
+    intrinsics[0,-1] -= start_w
+    intrinsics[1,-1] -= start_h
+    if DEBUG: print("[read_rescale_crop_img] cropped intrinsics:\n", intrinsics)
+    
+    # convert pillow image to numpy
+    np_img = np.array(img_cropped, dtype=np.float32) / 255.
+    
+    # checks shape
+    # assert np_img.shape[:2] == img_res
+    
+    # check image has 3 channels (RGB), stack if only 1 channel
+    if len(np_img.shape) == 2:
+        np_img = np.dstack((np_img, np_img, np_img))
+        
+    if DEBUG: print(f"[read_rescale_crop_img] np_img shape: {np_img.shape}")
+
+    return np_img, intrinsics

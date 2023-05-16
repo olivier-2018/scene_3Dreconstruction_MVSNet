@@ -32,7 +32,7 @@
                 "--save_freq", "1",
                 "--summary_freq", "1",
                 "--seed", "0",
-                "--debug_MVSnet", "0"
+                "--debug_MVSnet", "0",
             ]
         },
         {
@@ -75,7 +75,7 @@
                 "--dataset", "dataloader_eval",
                 "--dataset_name", "dtu",
                 "--testpath", "data/DTU/mvs_training",
-                "--outdir", "./outputs/debug/eval",
+                "--outdir", "./outputs/debug/evalDTU",
                 "--testlist", "lists/dtu/test_only1.txt",
                 "--pairfile", "pair.txt",
                 "--batch_size", "1",
@@ -89,7 +89,8 @@
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
                 "--debug_MVSnet", "0",
-                "--debug_depth_gen", "12"
+                "--debug_depth_gen", "31",
+                "--debug_depth_filter", "7"
             ]
         },
         {
@@ -330,44 +331,9 @@
                 "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
-                "--debug_MVSnet", "63",
-                "--debug_depth_gen", "24"
-            ]
-        },
-        {
-            "name": "MVSNet: eval_binpicking",
-            "type": "python",
-            "request": "launch",
-            "program": "eval.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            // "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
-            "args": [
-                "--dataset", "dataloader_eval",
-                "--dataset_name", "bin",
-                // "--testpath", "data/Bin_picking/2022-12-05_setup_Merlin_mario_blender_set",             // resized to 1024x1280
-                // "--testpath", "data/Bin_picking/2023-02-15_setup_overhead03_mario_w_GT",             // resized to 1024x1280
-                // "--testpath", "data/Bin_picking/2022-07-15_setup_Merlin_Mario_Set_Full_to_Empty", // resized to 1024x1280
-                // "--testpath", "data/Bin_picking/acquisition-2023-02-15-13-41-55",                 // with original img size&intrinsics
-                "--testpath", "data/Bin_2048x3072/2023-02-15_setup_overhead03_mario_w_GT",
-                "--outdir", "./outputs/debug/evalBin",
-                "--testlist", "lists/Bin/eval_scene1.txt",
-                // "--testlist", "lists/Bin/eval_scan7.txt",
-                "--pairfile", "eval_pair_4x4.txt",
-                "--batch_size", "1",
-                "--numdepth", "192", 
-                "--interval_scale", "1.33",
-                // "--loadckpt", "outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000018.ckpt",
-                "--loadckpt", "outputs/BDS7_512x640_N5_d192_215_2.5_itv1.33_intrin548-548/model_000021.ckpt",
-                "--NviewGen", "4",
-                "--NviewFilter", "4",
-                "--photomask", "0.",
-                "--geomask", "2",
-                "--condmask_pixel", "1",
-                "--condmask_depth", "0.01",
                 "--debug_MVSnet", "0",
-                "--debug_depth_gen", "31",
-                "--debug_depth_filter", "7"
+                "--debug_depth_gen", "12",
+                "--debug_depth_filter", "6"
             ]
         },
         {
@@ -431,8 +397,49 @@
                 "--condmask_pixel", "2",
                 "--condmask_depth", "0.05",
                 "--debug_MVSnet", "0",
-                "--debug_depth_gen", "14",
+                "--debug_depth_gen", "12",
                 "--debug_depth_filter", "6"
+            ]
+        },
+        {
+            "name": "MVSNet: eval_binpicking",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            // "cwd": "~/RECONSTRUCTION/EVAL_CODE/MVS/RECON_MVSNet_pytorch",
+            "args": [
+                "--dataset", "dataloader_eval",
+                "--dataset_name", "bin",
+                // "--testpath", "data/Bin_picking/2022-12-05_setup_Merlin_mario_blender_set",             // resized to 1024x1280
+                // "--testpath", "data/Bin_picking/2023-02-15_setup_overhead03_mario_w_GT",             // resized to 1024x1280
+                // "--testpath", "data/Bin_picking/2022-07-15_setup_Merlin_Mario_Set_Full_to_Empty", // resized to 1024x1280
+                // "--testpath", "data/Bin_picking/acquisition-2023-02-15-13-41-55",                 // with original img size&intrinsics
+                "--testpath", "data/Bin_picking/Bin_2048x3072/2023-02-15_setup_overhead03_mario_w_GT",
+                // "--testpath", "data/Bin_picking/Bin_2048x3072_matlab/2023-02-15_setup_overhead03_mario_w_GT_using_MATLAB_calib",
+                "--outdir", "./outputs/debug/evalBin",
+                // "--testlist", "lists/Bin/eval_scene1.txt",
+                "--testlist", "lists/Bin/eval_scene2.txt",
+                // "--testlist", "lists/Bin/eval_scene3.txt",
+                // "--testlist", "lists/Bin/eval_scene4.txt",
+                // "--testlist", "lists/Bin/eval_scene5.txt",
+                // "--pairfile", "eval_pair_4x4.txt",
+                "--pairfile", "eval_pair_4x3.txt",
+                "--batch_size", "1",
+                "--numdepth", "192", 
+                "--interval_scale", "1.33",
+                // "--loadckpt", "outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000018.ckpt",
+                "--loadckpt", "outputs/BDS7_512x640_N5_d192_215_2.5_itv1.33_intrin548-548/model_000021.ckpt",
+                "--NviewGen", "4",
+                "--NviewFilter", "4",
+                "--photomask", "0.1",
+                "--geomask", "2",
+                "--condmask_pixel", "2",
+                "--condmask_depth", "0.05",
+                "--debug_MVSnet", "0",
+                "--debug_depth_gen", "0",
+                "--debug_depth_filter", "7"
             ]
         },
     ]

@@ -10,7 +10,7 @@ def get_powers(n):
 class FeatureNet(nn.Module):
     def __init__(self):
         super(FeatureNet, self).__init__()
-        self.inplanes = 32
+        self.inplanes = 32 
 
         self.conv0 = ConvBnReLU(3, 8, 3, 1, 1) # (in_channels, out_channels, kernel_size=3, stride=1, pad=1):
         self.conv1 = ConvBnReLU(8, 8, 3, 1, 1)
