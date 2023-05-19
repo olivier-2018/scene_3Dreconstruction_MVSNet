@@ -44,7 +44,7 @@ class MVSDataset(Dataset):
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
                     metas.append((scan, ref_view, src_views))
-        print("[DataLoader] Mode:{} Nviews_pairfile:{} #scenes:{} #metas:{} ".format(self.mode, num_viewpoint, len(scans), len(metas)))
+        print("[DataLoader] Mode:{}, Nviews_pairfile:{}, #scenes:{}, #metas:{} ".format(self.mode, num_viewpoint, len(scans), len(metas)))
         return metas
 
     def __len__(self):
@@ -67,29 +67,29 @@ class MVSDataset(Dataset):
         
         return intrinsics, extrinsics, depth_min, depth_interval
 
-    def read_img(self, filename):
+    # def read_img(self, filename):   # Obsolete, replaced by datasets.data_io.read_rescale_crop_img
         
-        # Read
-        img = Image.open(filename)
+    #     # Read
+    #     img = Image.open(filename)
                      
-        # scale 0~255 to 0~1
-        np_img = np.array(img, dtype=np.float32) / 255.
+    #     # scale 0~255 to 0~1
+    #     np_img = np.array(img, dtype=np.float32) / 255.
         
-        # checks shape
-        assert np_img.shape[:2] == self.img_res
+    #     # checks shape
+    #     assert np_img.shape[:2] == self.img_res
         
-        # check image has 3 channels (RGB), stack if only 1 channel
-        if len(np_img.shape) == 2:
-            np_img = np.dstack((np_img, np_img, np_img))
+    #     # check image has 3 channels (RGB), stack if only 1 channel
+    #     if len(np_img.shape) == 2:
+    #         np_img = np.dstack((np_img, np_img, np_img))
                     
-        # Check resolution is multiple of 32, crop if needed
-        # EX: (512,640) --> (512,640)
-        # EX: (1024,1280) --> (1024,1280)
-        # EX: (1200,1600) --> (1184, 1600) !!
-        new_h, new_w  = tuple(i // 32 * 32 for i in self.img_res)
-        np_img = np_img[:new_h, :new_w]  # cropping at bottom or right does not need intrinsics change
+    #     # Check resolution is multiple of 32, crop if needed
+    #     # EX: (512,640) --> (512,640)
+    #     # EX: (1024,1280) --> (1024,1280)
+    #     # EX: (1200,1600) --> (1184, 1600) !!
+    #     new_h, new_w  = tuple(i // 32 * 32 for i in self.img_res)
+    #     np_img = np_img[:new_h, :new_w]  # cropping at bottom or right does not need intrinsics change
             
-        return np_img
+    #     return np_img
 
     def read_depth(self, filename):
         # read pfm depth file
@@ -146,11 +146,8 @@ class MVSDataset(Dataset):
                 # mid res img (1024x1280) --> depth (256x320) 
                 # high res img (1184x1600) --> depth (296x400)
                 # ALL have I/O CNN factor of 4 
-            intrinsics[:2, :] /= 4.0 
-            # magic_factor = 0.75
-            # intrinsics[0,0] *= 1
-            # intrinsics[1,1] *= magic_factor
-            if DEBUG: print (f"[dataloader] FINAL intrinsics:\n{intrinsics}")
+            intrinsics[:2, :] /= 4.0         
+            if DEBUG: print (f"[dataloader] FINAL intrinsics ({img_filename}):\n{intrinsics}")
             intrinsics_list.append(intrinsics)
             extrinsics_list.append(extrinsics)
         

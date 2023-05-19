@@ -321,9 +321,9 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
     cam_extrinsics = []
     
     with torch.no_grad():
-        for batch_idx, sample in enumerate(TestImgLoader):   # note: batch is 1 for eval
+        for batch_idx, sample in enumerate(TestImgLoader):   # note: batch MUST be 1 for eval
                        
-            # info:  
+            # sample info:  
             # sample => dict_keys(['imgs', 'proj_matrices', 'depth_values', 'filename', 'intrinsics', 'extrinsics']) 
             #    with sample["imgs"].shape=torch.Size([1, 2, 3, 1184, 1600])=[B, Nimg, RGB, H, W]
             
@@ -348,7 +348,7 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
             cv2.imwrite(img_filename, np.uint8(RGB_img * 255))
             
             # Get cam parameters
-            intrinsics_list = sample["intrinsics"]
+            intrinsics_list = sample["intrinsics"] # list of tensors
             extrinsics_list = sample["extrinsics"]
                 
             # Model Fwd pass for prediction
@@ -362,7 +362,15 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
 
             # save depth maps and confidence maps
             for ite, (filename, depth_est, photometric_confidence) in enumerate(zip(filenames, outputs["depth"], outputs["photometric_confidence"])):    
-                                                                                           
+
+                # get camera parameters
+                intrinsics = intrinsics_list[ite].squeeze().numpy()
+                extrinsics = extrinsics_list[ite].squeeze().numpy()
+                if ite ==0:
+                    ref_intrinsics = intrinsics
+                    ref_extrinsics = extrinsics
+                    cam_extrinsics.append(ref_extrinsics)   
+                                                  
                 # create folder filenames
                 depth_filename = os.path.join(args.outdir, acquisition_folder, filename.format('depth_est', '.pfm'))
                 confidence_filename = os.path.join(args.outdir, acquisition_folder, filename.format('confidence', '.pfm'))
@@ -380,9 +388,10 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
                 
                 # save confidence maps
                 save_pfm(confidence_filename, photometric_confidence)
+                cv2.imwrite(confidence_filename.replace(".pfm",".png"), photometric_confidence)
                 
                 # Save cams
-                write_cam(cam_filename, K=intrinsics_list[ite].squeeze().numpy(), R=extrinsics_list[ite].squeeze().numpy(), depth_params=[250, 2.5,"",""])
+                write_cam(cam_filename, K=intrinsics, R=extrinsics, depth_params=["000", "2.5","",""])
         
                 # print info
                 print("depth Min/Max: {:.1f}/{:.1f} - conf. Min/Max: {:.1f}%/{:.1f}%".format(np.min(depth_est), 
@@ -399,13 +408,13 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
                 
                 
                 #  DEBUG - Plot depth estimation
-                if '1' in get_powers(args.debug_depth_gen): # add 2
+                if '1' in get_powers(args.debug_depth_gen): # add 2                    
                     
-                    depth_esti_norm = (depth_est - np.min(depth_est)) / (np.max(depth_est) - np.min(depth_est))
-                                        
-                    # cv2.imshow("[depth estim.] view:{} res.:{}".format(batch_idx, str(depth_esti_norm.shape)), np.uint8(depth_esti_norm * 255)) 
+                    print(f"[depth_gen] intrinsics:\n{ref_intrinsics}")
+                    
+                    depth_esti_norm = (depth_est - np.min(depth_est)) / (np.max(depth_est) - np.min(depth_est))                                      
                     cv2.imshow("[depth estim.] view:{} res.:{}".format(batch_idx, str(depth_esti_norm.shape)), depth_esti_norm ) 
-                    cv2.imshow("[confidence] view:{}".format(batch_idx), np.uint8(photometric_confidence * 255)) 
+                    cv2.imshow("[confidence] view:{}".format(batch_idx), photometric_confidence ) 
                     
                     mask = (photometric_confidence>0.5)
                     p2 = photometric_confidence.copy()
@@ -417,32 +426,26 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
                 #  DEBUG END
                     
                     
-                # Save 3D points cloud
-                intrinsics = sample["intrinsics"][0].squeeze().numpy()
-                extrinsics = sample["extrinsics"][0].squeeze().numpy()
-                cam_extrinsics.append(extrinsics)
-                
-                xyz_world = depth2pts_np(depth_est, intrinsics, extrinsics) # all points
+                # Save 3D points cloud                
+                xyz_world = depth2pts_np(depth_est, ref_intrinsics, ref_extrinsics) # all points from depthmap included
                 h, w = depth_est.shape
-                img = sample["imgs"][0,0].permute(1,2,0).numpy()
-                img_rescaled = cv2.resize(img, (w, h))
-                xyz_color = img_rescaled.reshape(-1,3)
+                ref_img = sample["imgs"][0,0].permute(1,2,0).numpy()
+                ref_img_rescaled = cv2.resize(ref_img, (w, h))
+                xyz_color = ref_img_rescaled.reshape(-1,3)
                 
                 # Add to global point cloud
                 vertices.append(xyz_world)
-                vertices_colors.append((xyz_color))
+                vertices_colors.append(xyz_color)
                     
                     
                 #  DEBUG - Plot 3D point cloud for each view
                 if '2' in get_powers(args.debug_depth_gen): # add 4
-                    
-                    print(f"[depth_gen] intrinsics:\n{intrinsics}")
-                    
+                                        
                     # Create frame and bounding boxes
                     frame, bbox, bbox2 = get_o3d_frame_bbox(context = acquisition_folder)
                     
                     # get_camera objects
-                    o3D_cameras = get_o3d_cameras([extrinsics], True)
+                    o3D_cameras = get_o3d_cameras([ref_extrinsics], True)
                     
                     # Create  point cloud
                     pcd = o3d.geometry.PointCloud()
@@ -855,18 +858,23 @@ if __name__ == '__main__':
                         }
     
 
-    dict_img_res = {#"dtu": (512, 640),
-                    "dtu": (1200, 1600),
+    dict_img_res = {"dtu": (600, 800),
+                    # "dtu": (1200, 1600),
                     "bds1": (1200, 1600),
                     "bds2": (512, 640),
                     "bds4": (1024, 1280),
                     # "bds4": (512, 640),
                     "bds6": (1024, 1280),
                     "bds7": (512, 640),
-                    "bin": (512, 640),
+                    "bin": (512, 640), # works
+                    # "bin": (576, 800), # works
+                    # "bin": (672, 800), # no works
                     # "bin": (1024, 1280),
                     # "bin": (1024, 1536),
-                    # "bin": (1200, 1600),
+                    # "bin": (672, 800),
+                    # "bin": (1280, 1600),
+                    # "bin": (1152, 1600),
+                    # "bin": (2048, 2048),
                     # "bin": (2048, 3072),
                     }
         

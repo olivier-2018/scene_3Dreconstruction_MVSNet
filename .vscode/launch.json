@@ -416,18 +416,21 @@
                 // "--testpath", "data/Bin_picking/2023-02-15_setup_overhead03_mario_w_GT",             // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/2022-07-15_setup_Merlin_Mario_Set_Full_to_Empty", // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/acquisition-2023-02-15-13-41-55",                 // with original img size&intrinsics
-                "--testpath", "data/Bin_picking/Bin_2048x3072/2023-02-15_setup_overhead03_mario_w_GT",
-                // "--testpath", "data/Bin_picking/Bin_2048x3072_matlab/2023-02-15_setup_overhead03_mario_w_GT_using_MATLAB_calib",
+                // "--testpath", "data/Bin_picking/Bin_2048x3072_merlin_calib/2023-02-15_setup_overhead03_mario_w_GT",
+                // "--testpath", "data/Bin_picking/Bin_2048x3072_matlab_calib/2023-02-15_setup_overhead03_mario_w_GT_using_MATLAB_calib",
+                "--testpath", "data/Bin_picking/Bin_2048x3072_matlab_calib_test/2023-02-15_setup_overhead03_mario_w_GT_using_MATLAB_calib",
                 "--outdir", "./outputs/debug/evalBin",
                 // "--testlist", "lists/Bin/eval_scene1.txt",
-                "--testlist", "lists/Bin/eval_scene2.txt",
-                // "--testlist", "lists/Bin/eval_scene3.txt",
+                // "--testlist", "lists/Bin/eval_scene2.txt",
+                "--testlist", "lists/Bin/eval_scene3.txt",
                 // "--testlist", "lists/Bin/eval_scene4.txt",
                 // "--testlist", "lists/Bin/eval_scene5.txt",
-                // "--pairfile", "eval_pair_4x4.txt",
-                "--pairfile", "eval_pair_4x3.txt",
+                "--pairfile", "eval_pair_4x4.txt",
+                // "--pairfile", "eval_pair_4x3.txt",
                 "--batch_size", "1",
                 "--numdepth", "192", 
+                // "--interval_scale", "1.06",
+                // "--loadckpt", "outputs/DTU_512x640_N3_d192_itv1.06/model_000017.ckpt",                
                 "--interval_scale", "1.33",
                 // "--loadckpt", "outputs/BDS6_512x640_N5_d192_410_2.5_itv1.06/model_000018.ckpt",
                 "--loadckpt", "outputs/BDS7_512x640_N5_d192_215_2.5_itv1.33_intrin548-548/model_000021.ckpt",
@@ -435,17 +438,13 @@
                 "--NviewFilter", "4",
                 "--photomask", "0.1",
                 "--geomask", "2",
-                "--condmask_pixel", "2",
-                "--condmask_depth", "0.05",
-                "--debug_MVSnet", "0",
-                "--debug_depth_gen", "0",
-                "--debug_depth_filter", "7"
+                "--condmask_pixel", "1",
+                "--condmask_depth", "0.01",
+                "--debug_MVSnet", "0",              // 1:features, 2:warped views, 4:regularization, 8:depths, 16:expectation, 32:confidence, 63:all
+                "--debug_depth_gen", "14",           // 1:img, 2:depths, 4:view 3Dpts, 8:fused 3Dpts, 15:all
+                "--debug_depth_filter", "7"         // 1:depths, 2:view 3Dpts, 4:fused 3Dpts, 7:all
             ]
         },
     ]
 }
-
-
-
-
 

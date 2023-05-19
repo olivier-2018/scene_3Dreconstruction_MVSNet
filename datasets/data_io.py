@@ -84,11 +84,12 @@ def read_rescale_crop_img(img_fname, intrinsics, img_res=(512,640), DEBUG=False)
     
     # evaluate scale factor 
     h_target, w_target = img_res
+    
     if DEBUG: print(f"[read_rescale_crop_img] img target dims: ({h_target},{w_target})")        
     h_scale = float(h_target) / h_src
     w_scale = float(w_target) / w_src
     if h_scale > 1 or w_scale > 1:
-        print("[read_rescale_crop_img] max_h, max_w should < W and H!")
+        print("[read_rescale_crop_img] max_h, max_w should < W and H (image resolution should only be reduced)!")
         exit()
     resize_scale = h_scale
     if w_scale > h_scale:
@@ -96,7 +97,7 @@ def read_rescale_crop_img(img_fname, intrinsics, img_res=(512,640), DEBUG=False)
     if DEBUG: print(f"[read_rescale_crop_img] resize_scale: {resize_scale}")        
     
     # rescale image
-    img_rescaled = img.resize((int(w_src*resize_scale), int(h_src*resize_scale))) # Warning: width first with pillow
+    img_rescaled = img.resize(size=(int(w_src*resize_scale), int(h_src*resize_scale)), resample=Image.BILINEAR ) # Warning: width first with pillow
     w_rescaled, h_rescaled = img_rescaled.size        
     if DEBUG: print(f"[read_rescale_crop_img] img rescaled dims: ({h_rescaled}, {w_rescaled})")
     
