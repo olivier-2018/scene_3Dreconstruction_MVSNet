@@ -33,11 +33,14 @@ class MVSDataset(Dataset):
             scans = f.readlines()
             scans = [line.rstrip() for line in scans]
 
-        pair_file = os.path.join(self.cam_subfolder, self.pairfile)  
+        if self.dataset_name == "bin":
+            pair_file = os.path.join(self.datapath, "../..", self.pairfile)  
+        else:
+            pair_file = os.path.join(self.datapath, self.pairfile)  
         
         for scan in scans: # scans is a list of subfolders: ['scan1', 'scan4', ...]
             # read the pair file
-            with open(os.path.join(self.datapath, pair_file)) as f:
+            with open(pair_file) as f:
                 num_viewpoint = int(f.readline())
                 # viewpoints (49)
                 for view_idx in range(num_viewpoint):

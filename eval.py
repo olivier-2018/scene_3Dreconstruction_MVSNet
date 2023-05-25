@@ -603,12 +603,12 @@ def filter_depth(dataset_folder,
     
     # Read pair file
     # pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)
-    if args.dataset_name == "dtu" and cam_subfolder == "Cameras/train":
-        pair_file = os.path.join(dataset_folder, cam_subfolder, "..", args.pairfile)  
+    if args.dataset_name == "bin":
+        pair_file = os.path.join(dataset_folder, "../..", args.pairfile)  
     else:
-        pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)  
-        
-    pair_data = read_pair_file(pair_file)
+        pair_file = os.path.join(dataset_folder, args.pairfile)      
+    
+    pair_data = read_pair_file(pair_file)    
     nviews = len(pair_data)
     print("Reading pair files:\n{}\n".format(pair_data))
     
@@ -840,9 +840,10 @@ if __name__ == '__main__':
     dict_cam_subfolder = {  "dtu": "Cameras",
                             "bds1": "Cameras_1200x1600",
                             "bds2": "Cameras_512x640",
-                            "bds4": "Cameras_1024x1280",
-                            # "bds4": "Cameras_512x640",
-                            "bds6": "Cameras_1024x1280",
+                            # "bds4": "Cameras_1024x1280",
+                            "bds4": "Cameras_512x640",
+                            "bds6": "Cameras_512x640",
+                            # "bds6": "Cameras_1024x1280",
                             "bds7": "Cameras_512x640",
                             "bin": "Cameras",
                         }
@@ -852,7 +853,8 @@ if __name__ == '__main__':
                             "bds2": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
                             "bds4": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
                             # "bds4": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
-                            "bds6": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
+                            "bds6": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
+                            # "bds6": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
                             "bds7": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
                             "bin": "Rectified/{}/00000{:0>3}.png",
                         }
