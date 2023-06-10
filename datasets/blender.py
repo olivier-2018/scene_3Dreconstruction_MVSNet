@@ -1,8 +1,10 @@
 from torch.utils.data import Dataset
 import numpy as np
 import os
+import random
 from PIL import Image
 from datasets.data_io import *
+
 
 # the DTU dataset preprocessed by Yao Yao (only for training)
 class MVSDataset(Dataset):
@@ -14,8 +16,10 @@ class MVSDataset(Dataset):
         self.nviews = nviews
         self.ndepths = ndepths
         self.interval_scale = interval_scale
-        self.Nlights = kwargs.get("Nlights", 7)
-        self.pairfile = kwargs.get("pairfile", "pair.txt")
+        self.pairfile = kwargs.get("pairfile", "pair.txt")        
+        Nlights_str = kwargs.get("Nlights", "1:1")
+        self.Nlights = int(Nlights_str.split(":")[0].replace("(","").replace(")",""))
+        self.TotLights = int(Nlights_str.split(":")[1])
 
         assert self.mode in ["train", "val", "test"]
         self.metas = self.build_list()
@@ -35,16 +39,35 @@ class MVSDataset(Dataset):
             with open(os.path.join(self.datapath, pair_file)) as f:
                 num_viewpoint = int(f.readline())
                 # viewpoints
-                for view_idx in range(num_viewpoint):
+                for _ in range(num_viewpoint):  
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
-                    # light conditions 0-6
-                    if self.Nlights == 1 or self.Nlights == 0:
-                        light_idx = 0 
-                        metas.append((scan, light_idx, ref_view, src_views))
-                    else:
-                        for light_idx in range(7):    
-                            metas.append((scan, light_idx, ref_view, src_views))
+                    # light conditions 
+                    if self.Nlights == 0:
+                        metas.append((scan, 0, ref_view, src_views))
+                    elif self.Nlights < 0:
+                        metas.append((scan, -self.Nlights, ref_view, src_views))
+                    else:                
+                        if self.mode == "val":
+                            assert self.Nlights >= 2, "Eval number of lights must be >2 " 
+                            Nlights_val = random.sample(range(self.Nlights), k=2) # sample w/o replacements
+                            for light_idx in Nlights_val:    
+                                metas.append((scan, light_idx, ref_view, src_views))                            
+                        else:
+                            assert self.Nlights <= self.TotLights, "Training number of lights must be < total number of lights in dataset" 
+                            Nlights_train = random.sample(range(self.TotLights), k=self.Nlights) # sample w/o replacements
+                            for light_idx in Nlights_train:    
+                                metas.append((scan, light_idx, ref_view, src_views))
+                # for view_idx in range(num_viewpoint):
+                #     ref_view = int(f.readline().rstrip())
+                #     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
+                #     # light conditions 0-6
+                #     if self.Nlights == 1 or self.Nlights == 0:
+                #         light_idx = 0 
+                #         metas.append((scan, light_idx, ref_view, src_views))
+                #     else:
+                #         for light_idx in range(7):    
+                #             metas.append((scan, light_idx, ref_view, src_views))
                             
         print("mode: ", self.mode, ", # metas: ", len(metas))
         return metas

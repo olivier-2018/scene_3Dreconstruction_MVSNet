@@ -37,7 +37,7 @@ python train.py \
 --pairfile=$PAIRFILE \
 --trainlist=$TRAINLIST \
 --testlist=$TESTLIST \
---Nlights=7 \
+--Nlights="7:7" \
 --NtrainViews=5 \
 --NtestViews=5 \
 --numdepth=192  \
