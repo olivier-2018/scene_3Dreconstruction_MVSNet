@@ -261,6 +261,7 @@ def depth2pts_np(depth_map, cam_intrinsic, cam_extrinsic):
     R_inv = np.linalg.inv(R)
 
     world_points = np.matmul(R_inv, cam_points - t).transpose()
+    world_points[:,:2] = world_points[:,:2] * 1.0531
     return world_points
 
 def get_pixel_grids_np(height, width):
@@ -357,7 +358,7 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
             outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], sample_cuda["depth_values"])
             outputs = tensor2numpy(outputs)
             del sample_cuda
-            print(f'Iter {batch_idx+1}/{len(TestImgLoader)} (fwd pass in {round(time.time()-timestamp,2)}s)')
+            print(f'Iter {batch_idx+1}/{len(TestImgLoader)} (fwd pass in {round(time.time()-timestamp,3)}s)')
 
 
             # save depth maps and confidence maps
@@ -619,6 +620,7 @@ def filter_depth(dataset_folder,
     for ref_view, src_views in pair_data:
         
         print ("=> Ref view: {}, SRC views: {}".format(ref_view, src_views)) # OLI
+        timestamp = time.time()
         
         # REFERENCE VIEW - Filenames - OBSOLETE
         # cam_filename =  os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(ref_view))    # read from dataset folder
@@ -717,10 +719,11 @@ def filter_depth(dataset_folder,
         save_mask(os.path.join(out_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
         save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
 
-        print("SUMMARY: Ref_view: {:0>2}, photo/geo/final-mask:{:.2f}%/{:.2f}%/{:.2f}%".format(ref_view,
+        print("SUMMARY: Ref_view: {:0>2}, photo/geo/final-mask:{:.2f}%/{:.2f}%/{:.2f}%, time={:.3f}s".format(ref_view,
                                                                                                      photo_mask.mean()*100,
                                                                                                      geo_mask.mean()*100, 
-                                                                                                     final_mask.mean()*100))
+                                                                                                     final_mask.mean()*100,
+                                                                                                     time.time()-timestamp))
 
         #  DEBUG: plot depth with masks
         if '0' in get_powers(args.debug_depth_filter): # add 1
@@ -730,7 +733,7 @@ def filter_depth(dataset_folder,
 
             ref_depth_est_norm = (ref_depth_est - np.min(ref_depth_est)) / (np.max(ref_depth_est)-np.min(ref_depth_est)) 
             cv2.imshow('ref_depth', ref_depth_est_norm)
-            cv2.imshow('photo_mask', ref_depth_est_norm * photo_mask.astype(np.float32) )
+            cv2.imshow('photo_mask ({:.1f})'.format(args.photomask*100), ref_depth_est_norm * photo_mask.astype(np.float32) )
             cv2.imshow('geo_mask', ref_depth_est_norm * geo_mask.astype(np.float32) )
             cv2.imshow('final mask', ref_depth_est_norm * final_mask.astype(np.float32) )
             
@@ -745,15 +748,25 @@ def filter_depth(dataset_folder,
         valid_points = final_mask
         print("3D Pts-cloud: Number of valid_points: {}/{} (average={:03f})\n".format(valid_points.sum(), height*width, valid_points.mean())) 
         
-        x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
-        # color = ref_img[0:-16:4, 0::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
-        color = ref_img_resized[valid_points]  # scaling and cropping done above
+        xyz_world = depth2pts_np(depth_est_averaged, ref_intrinsics, ref_extrinsics) 
+        xyz_world_masked = xyz_world[final_mask.flatten()]
+        # xyz_color_masked = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)[final_mask]/255
+        xyz_color_masked = ref_img[1::4, 1::4, :][final_mask]
         
-        # color = ref_img[1::4, 1::4, :][valid_points]  # hardcoded for Merlin dataset
-        xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
-        xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
-        vertexs.append(xyz_world.transpose((1, 0)))
-        vertex_colors.append((color * 255).astype(np.uint8)) # list of arrays containing vertices (x,y,z)
+        # Add to global point cloud
+        vertexs.append(xyz_world_masked)
+        vertex_colors.append((xyz_color_masked * 255).astype(np.uint8))
+        
+        
+        # x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
+        # # color = ref_img[0:-16:4, 0::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
+        # color = ref_img_resized[valid_points]  # scaling and cropping done above
+        
+        # # color = ref_img[1::4, 1::4, :][valid_points]  # hardcoded for Merlin dataset
+        # xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
+        # xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
+        # vertexs.append(xyz_world.transpose((1, 0)))
+        # vertex_colors.append((color * 255).astype(np.uint8)) # list of arrays containing vertices (x,y,z)
 
 
         #  DEBUG: plot 3D point-cloud for each view
@@ -782,6 +795,8 @@ def filter_depth(dataset_folder,
     #  Once all reference images processed, concatenate all vertices and save as ply format
     vertexs_xyz = np.concatenate(vertexs, axis=0)
     vertexs_xyz_colors = np.concatenate(vertex_colors, axis=0)
+    
+    # Build ply 
     vertexs = np.array([tuple(v) for v in vertexs_xyz], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
     vertex_colors = np.array([tuple(v) for v in vertexs_xyz_colors], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
 
@@ -792,9 +807,8 @@ def filter_depth(dataset_folder,
         vertex_all[prop] = vertex_colors[prop]
 
     el = PlyElement.describe(vertex_all, 'vertex')
-    PlyData([el]).write(plyfilename)
-    
-    print("saving the final model to", plyfilename)
+    # PlyData([el]).write(plyfilename)    
+    # print("saving the final model to", plyfilename)
     
             
     #  DEBUG: plot FINAL 3D point-cloud
@@ -826,9 +840,16 @@ def filter_depth(dataset_folder,
             
             # Down-sample     
             pcd = pcd.crop(bbox2)
-            pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio = 2.0)
-            pcd = pcd.voxel_down_sample(voxel_size=5)
-            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd]+o3D_cameras)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd])            
+            
+            dwn_smpl = 5
+            pcd_fname = f"fused_dwnsmpld_{dwn_smpl}mm.ply"
+            pcd = pcd.voxel_down_sample(voxel_size=dwn_smpl)
+            o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd])
+            o3d.io.write_point_cloud(os.path.join(out_folder, pcd_fname), pcd.scale(0.01, (0,0,0)), write_ascii=False, compressed=False, print_progress=False)
+            print("saving model to", pcd_fname)
+    
+        # DEBUG - END
 
         
 ################################################################################################################################
