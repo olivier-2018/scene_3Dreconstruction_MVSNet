@@ -39,7 +39,7 @@ parser.add_argument('--interval_scale', type=float, default=1.06, help='the dept
 
 parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
 parser.add_argument('--outdir', default='./outputs', help='output dir')
-parser.add_argument('--display', action='store_true', help='display depth images and masks')
+parser.add_argument('--save_ply', action='store_true', help='save ply (stanford) file')
 
 parser.add_argument('--NviewGen', type=int, default=5, help='number of views used to generate depth maps (DTU=5)')
 parser.add_argument('--NviewFilter', type=int, default=10, help='number of src views used while filtering depth maps (DTU=10)')
@@ -598,8 +598,8 @@ def filter_depth(dataset_folder,
     print("Dataset:{}\n".format(dataset_folder))
     
     # for the final point cloud
-    vertexs = []
-    vertex_colors = []
+    vertices = []
+    vertices_colors = []
     cam_extrinsics = []
     
     # Read pair file
@@ -733,8 +733,14 @@ def filter_depth(dataset_folder,
 
             ref_depth_est_norm = (ref_depth_est - np.min(ref_depth_est)) / (np.max(ref_depth_est)-np.min(ref_depth_est)) 
             cv2.imshow('ref_depth', ref_depth_est_norm)
-            cv2.imshow('photo_mask ({:.1f})'.format(args.photomask*100), ref_depth_est_norm * photo_mask.astype(np.float32) )
-            cv2.imshow('geo_mask', ref_depth_est_norm * geo_mask.astype(np.float32) )
+            cv2.imshow('photo conf.', confidence.astype(np.float32) )
+            
+            # cv2.imshow('photo_mask ({:.1f}%)'.format(args.photomask*100), ref_depth_est_norm * photo_mask.astype(np.float32) )
+            cv2.imshow('photo_mask ({:.1f}%)'.format(args.photomask*100), photo_mask.astype(np.float32) )
+            
+            # cv2.imshow('geo_mask', ref_depth_est_norm * geo_mask.astype(np.float32) )
+            cv2.imshow('geo_mask', geo_mask.astype(np.float32) )
+            
             cv2.imshow('final mask', ref_depth_est_norm * final_mask.astype(np.float32) )
             
             cv2.waitKey(0)
@@ -754,20 +760,9 @@ def filter_depth(dataset_folder,
         xyz_color_masked = ref_img[1::4, 1::4, :][final_mask]
         
         # Add to global point cloud
-        vertexs.append(xyz_world_masked)
-        vertex_colors.append((xyz_color_masked * 255).astype(np.uint8))
+        vertices.append(xyz_world_masked)
+        vertices_colors.append((xyz_color_masked * 255).astype(np.uint8))
         
-        
-        # x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
-        # # color = ref_img[0:-16:4, 0::4, :][valid_points]  # hardcoded for DTU dataset, images cropped by 16pixels at bottom, see dtu_yao_eval.py
-        # color = ref_img_resized[valid_points]  # scaling and cropping done above
-        
-        # # color = ref_img[1::4, 1::4, :][valid_points]  # hardcoded for Merlin dataset
-        # xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
-        # xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
-        # vertexs.append(xyz_world.transpose((1, 0)))
-        # vertex_colors.append((color * 255).astype(np.uint8)) # list of arrays containing vertices (x,y,z)
-
 
         #  DEBUG: plot 3D point-cloud for each view
         if '1' in get_powers(args.debug_depth_filter): # add 2
@@ -780,8 +775,8 @@ def filter_depth(dataset_folder,
             
             # Create  point cloud
             pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(xyz_world.transpose((1, 0)).astype(np.float64))
-            pcd.colors = o3d.utility.Vector3dVector(color)
+            pcd.points = o3d.utility.Vector3dVector(xyz_world_masked)
+            pcd.colors = o3d.utility.Vector3dVector(xyz_color_masked)
             pcd.estimate_normals()
             
             # plot (type h for help in open3d)
@@ -793,39 +788,40 @@ def filter_depth(dataset_folder,
 
 
     #  Once all reference images processed, concatenate all vertices and save as ply format
-    vertexs_xyz = np.concatenate(vertexs, axis=0)
-    vertexs_xyz_colors = np.concatenate(vertex_colors, axis=0)
+    vertices_all = np.concatenate(vertices, axis=0)
+    vertices_colors_all = np.concatenate(vertices_colors, axis=0)
     
     # Build ply 
-    vertexs = np.array([tuple(v) for v in vertexs_xyz], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-    vertex_colors = np.array([tuple(v) for v in vertexs_xyz_colors], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
+    if args.save_ply:
+        ply_vertices = np.array([tuple(v) for v in vertices_all], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+        ply_vertices_colors = np.array([tuple(v) for v in vertices_colors_all], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
 
-    vertex_all = np.empty(len(vertexs), vertexs.dtype.descr + vertex_colors.dtype.descr)
-    for prop in vertexs.dtype.names:
-        vertex_all[prop] = vertexs[prop]
-    for prop in vertex_colors.dtype.names:
-        vertex_all[prop] = vertex_colors[prop]
+        vertex_all = np.empty(len(ply_vertices), ply_vertices.dtype.descr + ply_vertices_colors.dtype.descr)
+        for prop in ply_vertices.dtype.names:
+            vertex_all[prop] = ply_vertices[prop]
+        for prop in vertices_colors.dtype.names:
+            vertex_all[prop] = ply_vertices_colors[prop]
 
-    el = PlyElement.describe(vertex_all, 'vertex')
-    # PlyData([el]).write(plyfilename)    
-    # print("saving the final model to", plyfilename)
+        el = PlyElement.describe(vertex_all, 'vertex')
+        PlyData([el]).write(plyfilename)    
+        print("saving the final model to", plyfilename)
     
             
     #  DEBUG: plot FINAL 3D point-cloud
     if '2' in get_powers(args.debug_depth_filter): # add 4
 
-        # Create  point cloud
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vertexs_xyz.astype(np.float64))
-        pcd.colors = o3d.utility.Vector3dVector(vertexs_xyz_colors/255)
-        pcd.estimate_normals()
-        
         # Create frame and bounding boxes
         frame, bbox, bbox2 = get_o3d_frame_bbox(context = img_filename)
             
         # get_camera objects
         o3D_cameras = get_o3d_cameras(cam_extrinsics, False)
             
+        # Create  point cloud
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(vertices_all)
+        pcd.colors = o3d.utility.Vector3dVector(vertices_colors_all/255)
+        pcd.estimate_normals()
+        
         # plot (type h for help in open3d)
         if args.dataset in ["dtu"]:
             # Set view

@@ -398,24 +398,31 @@
 
                 // "--testlist", "lists/BDS8/eval_scene160.txt",
                 // "--testlist", "lists/BDS8/eval_scene170.txt",
-                "--testlist", "lists/BDS8/eval_scene175.txt",
+                // "--testlist", "lists/BDS8/eval_scene175.txt",
                 // "--testlist", "lists/BDS8/eval_scene180.txt",  
+                "--testlist", "lists/BDS8/eval_scene183.txt",  
                 // "--testlist", "lists/BDS8/eval_scene185.txt",   
-
-                "--pairfile", "pair_49x10.txt",
+                
+                // "--pairfile", "pair_49x10.txt",
                 // "--pairfile", "eval_pair_4x4_0-1-2-3.txt",
                 // "--pairfile", "eval_pair_4x4_2-3-11-12.txt",
                 // "--pairfile", "eval_pair_4x4_11-12-15-16.txt",
                 // "--pairfile", "eval_pair_4x4_19-29-31-33.txt",
                 // "--pairfile", "eval_pair_4x4_19-34-29-30.txt",
                 // "--pairfile", "eval_pair_4x4_30-31-33-34.txt",
-                // "--pairfile", "eval_pair_4x4_44-45-47-48.txt",
+                // "--pairfile", "eval_pair_4x4_44-45-47-48.txt",  // best but top row
+                "--pairfile", "eval_pair_4x4_30-34-46-47.txt",  // 2nd best 
+                // "--pairfile", "eval_pair_4x4_13-17-31-33.txt",        
+                // "--pairfile", "eval_pair_4x4_0-12-19-29.txt",           
+                // "--pairfile", "eval_pair_4x4_35-43-45-47.txt",             
+                // "--pairfile", "eval_pair_4x4_19-29-45-47.txt",               
+                // "--pairfile", "eval_pair_4x4_35-36-43-44.txt",      
 
-                "--NviewGen", "7",
-                "--NviewFilter", "7",
+                "--NviewGen", "4",
+                "--NviewFilter", "4",
 
                 "--photomask", "0.5",
-                "--geomask", "4",
+                "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
 
@@ -441,16 +448,18 @@
                 // "--testpath", "data/Bin_picking/2023-02-15_setup_overhead03_mario_w_GT",             // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/2022-07-15_setup_Merlin_Mario_Set_Full_to_Empty", // resized to 1024x1280
                 // "--testpath", "data/Bin_picking/acquisition-2023-02-15-13-41-55",                 // with original img size&intrinsics
-
-                "--testpath", "data/Bin_picking/Bin_2048x3072_merlin_calib/2023-02-15_setup_overhead03_mario_w_GT",
+            
+                "--testpath", "data/Bin_picking/Bin_2048x3072_merlin_calib/2022-09-30_setup_Merlin_Mario_Set_with_GT", // this
+                // "--testpath", "data/Bin_picking/Bin_2048x3072_merlin_calib/2023-02-15_setup_overhead03_mario_w_GT", // that
                 // "--testpath", "data/Bin_picking/Bin_2048x3072_matlab_calib/2023-02-15_setup_overhead03_mario_w_GT_using_MATLAB_calib",
-                // "--testpath", "data/Bin_picking/Bin_2048x3072_matlab_calib_test/2023-02-15_setup_overhead03_mario_w_GT_using_MATLAB_calib",
-
+ 
+                "--testlist", "lists/Bin/eval_scene7.txt",
                 // "--testlist", "lists/Bin/eval_scene1.txt",
                 // "--testlist", "lists/Bin/eval_scene2.txt",
-                "--testlist", "lists/Bin/eval_scene3.txt",
+                // "--testlist", "lists/Bin/eval_scene3.txt",
                 // "--testlist", "lists/Bin/eval_scene4.txt",
                 // "--testlist", "lists/Bin/eval_scene5.txt",
+                
 
                 // "--pairfile", "eval_pair_4x1.txt",
                 // "--pairfile", "eval_pair_4x2.txt",
@@ -469,14 +478,15 @@
 
                 "--NviewGen", "4",
                 "--NviewFilter", "4",
+
                 "--photomask", "0.1",
                 "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
 
                 "--debug_MVSnet", "0",              // 1:features, 2:warped views, 4:regularization, 8:depths, 16:expectation, 32:confidence, 63:all
-                "--debug_depth_gen", "14",           // 1:img, 2:depths, 4:view 3Dpts, 8:fused 3Dpts, 15:all
-                "--debug_depth_filter", "7"         // 1:depths, 2:view 3Dpts, 4:fused 3Dpts, 7:all
+                "--debug_depth_gen", "2",           // 1:img, 2:depths, 4:view 3Dpts, 8:fused 3Dpts, 15:all
+                "--debug_depth_filter", "4"         // 1:depths, 2:view 3Dpts, 4:fused 3Dpts, 7:all
             ]
         },
     ]
