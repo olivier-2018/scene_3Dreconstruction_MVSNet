@@ -320,6 +320,7 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
     vertices = []
     vertices_colors = []
     cam_extrinsics = []
+    avg_gen_time = []
     
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):   # note: batch MUST be 1 for eval
@@ -359,7 +360,7 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
             outputs = tensor2numpy(outputs)
             del sample_cuda
             print(f'Iter {batch_idx+1}/{len(TestImgLoader)} (fwd pass in {round(time.time()-timestamp,3)}s)')
-
+            avg_gen_time.append(time.time()-timestamp)
 
             # save depth maps and confidence maps
             for ite, (filename, depth_est, photometric_confidence) in enumerate(zip(filenames, outputs["depth"], outputs["photometric_confidence"])):    
@@ -496,6 +497,7 @@ def save_depth(cam_subfolder, img_subfolder,img_res):
             o3d.visualization.draw_geometries([frame]+[bbox]+[bbox2]+[pcd]+o3D_cameras)
         #  DEBUG END
 
+    print(f"Averaged generation time: {np.average(avg_gen_time)}")
            
 
 #########FILTER_DEPTH##########################################################################################################
@@ -601,6 +603,7 @@ def filter_depth(dataset_folder,
     vertices = []
     vertices_colors = []
     cam_extrinsics = []
+    avg_filter_time = []
     
     # Read pair file
     # pair_file = os.path.join(dataset_folder, cam_subfolder, args.pairfile)
@@ -612,23 +615,13 @@ def filter_depth(dataset_folder,
     pair_data = read_pair_file(pair_file)    
     nviews = len(pair_data)
     print("Reading pair files:\n{}\n".format(pair_data))
-    
-    # TODO: hardcode size
-    # used_mask = [np.zeros([296, 400], dtype=np.bool) for _ in range(nviews)]
 
     # for each reference view and the corresponding source views
     for ref_view, src_views in pair_data:
         
-        print ("=> Ref view: {}, SRC views: {}".format(ref_view, src_views)) # OLI
+        print ("=> Ref view: {}, SRC views: {}".format(ref_view, src_views[:args.NviewFilter])) # OLI
         timestamp = time.time()
-        
-        # REFERENCE VIEW - Filenames - OBSOLETE
-        # cam_filename =  os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(ref_view))    # read from dataset folder
-        # if args.dataset_name in ["dtu"]: 
-        #     img_filename = os.path.join(dataset_folder, img_subfolder.format(scan, ref_view+1)) 
-        # else:            
-        #     img_filename = os.path.join(dataset_folder, img_subfolder.format(scan, ref_view))
-        
+
         # REFERENCE VIEW - Filenames
         cam_filename =  os.path.join(args.outdir, args.testpath.split('/')[-1], scan, "cams", "00000{:0>3}_cam.txt".format(ref_view)) # better read from output folder in case image & cams were rescaled  
         img_filename =  os.path.join(args.outdir, args.testpath.split('/')[-1], scan, "images", "00000{:0>3}.png".format(ref_view)) # read from output folder (saved during depth generation)  
@@ -678,7 +671,7 @@ def filter_depth(dataset_folder,
         # for src_view in src_views: # filter depth using all src views from pair_file.txt (for each ref view)
         for counter, src_view in enumerate(src_views[:args.NviewFilter]): 
             
-            print("SRC view...", end="") 
+            print(f"SRC view {src_view}: ", end="") 
             
             # SOURCE VIEW - Filenames
             # cam_filename = os.path.join(dataset_folder, cam_subfolder, '{:0>8}_cam.txt'.format(src_view)) # Obsolete
@@ -706,7 +699,6 @@ def filter_depth(dataset_folder,
         depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
         
         # ================ geo MASK =====================
-        #  at least 3 source views matched  
         geo_mask = geo_mask_sum >= args.geomask # DTU, info Oli: only take pixels which have been included in at least 3 masks
         
         
@@ -719,11 +711,13 @@ def filter_depth(dataset_folder,
         save_mask(os.path.join(out_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
         save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
 
-        print("SUMMARY: Ref_view: {:0>2}, photo/geo/final-mask:{:.2f}%/{:.2f}%/{:.2f}%, time={:.3f}s".format(ref_view,
+        print("SUMMARY: Ref_view: {:0>2}, photo/geo/final-mask:{:.2f}%/{:.2f}%/{:.2f}%, inference time={:.3f}s".format(ref_view,
                                                                                                      photo_mask.mean()*100,
                                                                                                      geo_mask.mean()*100, 
                                                                                                      final_mask.mean()*100,
                                                                                                      time.time()-timestamp))
+        
+        avg_filter_time.append(time.time()-timestamp)
 
         #  DEBUG: plot depth with masks
         if '0' in get_powers(args.debug_depth_filter): # add 1
@@ -846,7 +840,7 @@ def filter_depth(dataset_folder,
             print("saving model to", pcd_fname)
     
         # DEBUG - END
-
+    print(f"Averaged filter time: {np.average(avg_filter_time)}")
         
 ################################################################################################################################
 ################################################################################################################################

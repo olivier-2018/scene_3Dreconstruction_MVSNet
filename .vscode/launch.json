@@ -289,16 +289,16 @@
                 "--pairfile", "pair_49x10.txt", 
                 "--trainlist", "lists/BDS7/train200.txt",
                 "--testlist", "lists/BDS7/test200.txt",
-                "--NtrainViews", "3",
-                "--Nlights", "3:7",
+                "--NtrainViews", "5",
+                "--Nlights", "7:7",
                 "--numdepth", "192",
                 "--interval_scale", "1.33",
-                "--batch_size", "1",
+                "--batch_size", "3",
                 "--epochs", "16",
                 "--lr", "0.001",
                 "--lrepochs", "10,12,14:2",
                 "--save_freq", "1",
-                "--summary_freq", "1",
+                "--summary_freq", "100",
                 "--seed", "0",
                 "--debug_MVSnet", "0",
             ]
@@ -338,13 +338,15 @@
 
                 "--NviewGen", "4",
                 "--NviewFilter", "4",
+
                 "--photomask", "0.1",
                 "--geomask", "2",
                 "--condmask_pixel", "1",
                 "--condmask_depth", "0.01",
+
                 "--debug_MVSnet", "0",
-                "--debug_depth_gen", "12",
-                "--debug_depth_filter", "6"
+                "--debug_depth_gen", "0",
+                "--debug_depth_filter", "0"
             ]
         },
         {
