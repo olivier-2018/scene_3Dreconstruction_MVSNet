@@ -4,6 +4,15 @@ This repository investigates the feasibility to use low-number of low-cost black
 
 The core deep learning algorithm is based on MVSnet (2018).  
 
+Concept: 
+For N camera views,  build depth hypotheses by: 
+- Extracting and projecting features into the same ref. frame
+- Aggregate feature volumes into a variance-based cost metric
+- Derive depth probabilities by regularization (softmax function)
+- Compute depth map by evaluating the depth planes expectation 
+
+![image](https://github.com/user-attachments/assets/c860ea68-5549-4070-ae4b-c169aa5b2f3d)
+
 The following improvements were implemented:
 - code quantization to reduce memory footprint
 - set of debugging flags to plot intermediate features, depth maps and reconstructions
