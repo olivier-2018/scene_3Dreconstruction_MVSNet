@@ -5,9 +5,7 @@ junit.xml
 .venv/
 __pycache__
 *.ckpt
-*.jpg
 *.pfm
-*.png
 *.ply
 outputs/
 checkpoints/

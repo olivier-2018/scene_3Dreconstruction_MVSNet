@@ -42,17 +42,17 @@ tensorboard --bind_all --logdir <output_folder>
 
 ## Illustrations
 ### Convergence history and depthmap predictions during training
-![overview](pictures/MVSnet_cvg_history_BDS8.png)
-![overview](pictures/MVSnet_cvg_img_BDS8.png)
+![Convergence history](pictures/MVSnet_cvg_history_BDS8.png)
+![depthmap predictions during training](pictures/MVSnet_cvg_img_BDS8.png)
 ### Scene reconstruction from synthesized dataset using 49 cameras
-![overview](pictures/MVSnet_BDS8_s175_49cams.png)
+![Scene reconstruction](pictures/MVSnet_BDS8_s175_49cams.png)
 ### Scene reconstruction from synthesized dataset using only 4 low-cost cameras
-![overview](pictures/MVSnet_BDS8_s183_4cams_depthmaps.png)
-![overview](pictures/MVSnet_BDS8_s183_4cams.png)
+![Scene reconstruction 4 cameras](pictures/MVSnet_BDS8_s183_4cams_depthmaps.png)
+![Scene reconstruction 4 cameras](pictures/MVSnet_BDS8_s183_4cams.png)
 ### Scene reconstruction from real images using 4 low-cost cameras
-![overview](pictures/MVSnet_Bin_BDS8_overhead03_depthmaps.png)
-![overview](pictures/MVSnet_Bin_BDS8_overhead03_scene1_4cams.png)
-![overview](pictures/MVSnet_Bin_BDS8_overhead03_scenes_comparison.png)
+![real images depthmap predictions](pictures/MVSnet_Bin_BDS8_overhead03_depthmaps.png)
+![real images scene reconstruction](pictures/MVSnet_Bin_BDS8_overhead03_scene1_4cams.png)
+![Comaprison of scene reconstructions](pictures/MVSnet_Bin_BDS8_overhead03_scenes_comparison.png)
 
 ## Acknowledgements
 
