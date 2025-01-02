@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse. M
 parser.add_argument('--model', default='mvsnet', help='select model')
 
 parser.add_argument('--dataset', default='dtu_yao', choices=['dtu_yao', 'blender', 'dataloader_eval'],help='select dataloader file')
-parser.add_argument('--dataset_name', default='dtu', choices=['dtu', 'bds1', 'bds2', 'bds4', 'bds6', 'bds7', 'bin'],help='select dataset type')
+parser.add_argument('--dataset_name', default='dtu', choices=['dtu', 'bds1', 'bds2', 'bds4', 'bds6', 'bds7', 'bds8', 'bin'],help='select dataset type')
 parser.add_argument('--testpath', help='testing data path')
 parser.add_argument('--testlist', help='testing scan list')
 parser.add_argument('--pairfile', default="pair.txt", help='pair filename')
@@ -270,7 +270,7 @@ def get_pixel_grids_np(height, width):
     x_coordinates, y_coordinates = np.meshgrid(x_linspace, y_linspace)
     x_coordinates = np.reshape(x_coordinates, (1, -1))
     y_coordinates = np.reshape(y_coordinates, (1, -1))
-    ones = np.ones_like(x_coordinates).astype(np.float)
+    ones = np.ones_like(x_coordinates).astype(float)
     grid = np.concatenate([x_coordinates, y_coordinates, ones], axis=0)
 
     return grid
@@ -856,6 +856,7 @@ if __name__ == '__main__':
                             "bds6": "Cameras_512x640",
                             # "bds6": "Cameras_1024x1280",
                             "bds7": "Cameras_512x640",
+                            "bds8": "Cameras_512x640",
                             "bin": "Cameras",
                         }
     
@@ -867,6 +868,7 @@ if __name__ == '__main__':
                             "bds6": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
                             # "bds6": "Rectified_1024x1280/{}/rect_C{:0>3}_L00.png",
                             "bds7": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
+                            "bds8": "Rectified_512x640/{}/rect_C{:0>3}_L00.png",
                             "bin": "Rectified/{}/00000{:0>3}.png",
                         }
     
@@ -879,6 +881,7 @@ if __name__ == '__main__':
                     # "bds4": (512, 640),
                     "bds6": (1024, 1280),
                     "bds7": (512, 640),
+                    "bds8": (512, 640),
                     "bin": (512, 640), # works
                     # "bin": (576, 800), # works
                     # "bin": (672, 800), # no works
