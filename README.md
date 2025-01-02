@@ -2,16 +2,16 @@
 
 This repository investigates the feasibility to use low-number of low-cost black & white cameras for of 3D scene reconstruction for bin-picking applications.
 
-The core deep learning algorithm is based on MVSnet (2018).  
+The core deep learning algorithm is based on MVSnet (2018) with the following concept and arcitecture:  
 
-Concept: 
+**Concept:**
 For N camera views,  build depth hypotheses by: 
 - Extracting and projecting features into the same ref. frame
 - Aggregate feature volumes into a variance-based cost metric
 - Derive depth probabilities by regularization (softmax function)
 - Compute depth map by evaluating the depth planes expectation 
 
-![image](https://github.com/user-attachments/assets/c860ea68-5549-4070-ae4b-c169aa5b2f3d)
+![Model architecture](pictures/MVSNet_arch.png)
 
 The following improvements were implemented:
 - code quantization to reduce memory footprint
